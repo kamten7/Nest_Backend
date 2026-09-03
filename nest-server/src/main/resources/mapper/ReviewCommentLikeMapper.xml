@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.ReviewCommentLikeMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO review_comment_like (comment_id, tenant_id, create_time)
+        VALUES (#{commentId}, #{tenantId}, NOW())
+    </insert>
+
+    <delete id="deleteByCommentAndTenant">
+        DELETE FROM review_comment_like WHERE comment_id = #{commentId} AND tenant_id = #{tenantId}
+    </delete>
+
+    <select id="selectByCommentAndTenant" resultType="ReviewCommentLike">
+        SELECT * FROM review_comment_like
+        WHERE comment_id = #{commentId} AND tenant_id = #{tenantId}
+        LIMIT 1
+    </select>
+
+</mapper>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.ConversationMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO conversation (user1_type, user1_id, user2_type, user2_id, create_time)
+        VALUES (#{user1Type}, #{user1Id}, #{user2Type}, #{user2Id}, NOW())
+    </insert>
+
+    <!-- 双向匹配：无论谁发起，都映射到同一条会话 -->
+    <select id="selectByPair" resultType="Conversation">
+        SELECT * FROM conversation
+        WHERE (user1_type = #{user1Type} AND user1_id = #{user1Id}
+           AND user2_type = #{user2Type} AND user2_id = #{user2Id})
+           OR (user1_type = #{user2Type} AND user1_id = #{user2Id}
+           AND user2_type = #{user1Type} AND user2_id = #{user1Id})
+        LIMIT 1
+    </select>
+
+    <select id="selectByUser" resultType="Conversation">
+        SELECT * FROM conversation
+        WHERE (user1_type = #{userType} AND user1_id = #{userId})
+           OR (user2_type = #{userType} AND user2_id = #{userId})
+        ORDER BY last_message_time DESC
+    </select>
+
+    <select id="selectById" resultType="Conversation">
+        SELECT * FROM conversation WHERE id = #{id}
+    </select>
+
+    <update id="updateLastMessage">
+        UPDATE conversation
+        SET last_message = #{lastMessage}, last_message_time = #{lastMessageTime}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

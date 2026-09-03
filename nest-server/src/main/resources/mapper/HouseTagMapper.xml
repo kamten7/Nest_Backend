@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.HouseTagMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO house_tag (house_id, tag_name) VALUES
+        <foreach collection="tags" item="tag" separator=",">
+            (#{tag.houseId}, #{tag.tagName})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByHouseId">
+        DELETE FROM house_tag WHERE house_id = #{houseId}
+    </delete>
+
+    <select id="selectByHouseId" resultType="HouseTag">
+        SELECT * FROM house_tag WHERE house_id = #{houseId}
+    </select>
+
+    <select id="selectByHouseIds" resultType="HouseTag">
+        SELECT * FROM house_tag WHERE house_id IN
+        <foreach collection="houseIds" item="hid" open="(" separator="," close=")">
+            #{hid}
+        </foreach>
+    </select>
+
+</mapper>

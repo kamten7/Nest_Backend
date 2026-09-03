@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.HouseImageMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO house_image (house_id, url, is_cover, sort_order, create_time) VALUES
+        <foreach collection="images" item="img" separator=",">
+            (#{img.houseId}, #{img.url}, #{img.isCover}, #{img.sortOrder}, NOW())
+        </foreach>
+    </insert>
+
+    <delete id="deleteByHouseId">
+        DELETE FROM house_image WHERE house_id = #{houseId}
+    </delete>
+
+    <select id="selectByHouseId" resultType="HouseImage">
+        SELECT * FROM house_image WHERE house_id = #{houseId} ORDER BY sort_order ASC
+    </select>
+
+</mapper>

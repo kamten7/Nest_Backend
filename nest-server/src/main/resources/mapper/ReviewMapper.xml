@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.ReviewMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO review (tenant_id, house_id, rating, content, create_time)
+        VALUES (#{tenantId}, #{houseId}, #{rating}, #{content}, NOW())
+    </insert>
+
+    <select id="selectById" resultType="Review">
+        SELECT * FROM review WHERE id = #{id}
+    </select>
+
+    <select id="selectByHouse" resultType="Review">
+        SELECT * FROM review
+        WHERE house_id = #{houseId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByTenantAndHouse" resultType="Review">
+        SELECT * FROM review
+        WHERE tenant_id = #{tenantId} AND house_id = #{houseId}
+        LIMIT 1
+    </select>
+
+    <select id="selectCountByHouse" resultType="long">
+        SELECT COUNT(*) FROM review WHERE house_id = #{houseId}
+    </select>
+
+    <select id="selectAvgRatingByHouse" resultType="java.math.BigDecimal">
+        SELECT COALESCE(AVG(rating), 0) FROM review WHERE house_id = #{houseId}
+    </select>
+
+</mapper>

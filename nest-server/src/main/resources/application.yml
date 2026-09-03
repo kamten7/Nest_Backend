@@ -1,0 +1,79 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: dev
+  main:
+    allow-circular-references: true
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      driver-class-name: ${nest.datasource.driver-class-name}
+      url: jdbc:mysql://${nest.datasource.host}:${nest.datasource.port}/${nest.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      username: ${nest.datasource.username}
+      password: ${nest.datasource.password}
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6381
+      password: 123456
+      database: 1
+      timeout: 5000ms
+      lettuce:
+        pool:
+          min-idle: 4
+          max-idle: 8
+          max-active: 16
+          max-wait: 3000ms
+
+# springdoc-openapi
+springdoc:
+  api-docs:
+    enabled: true
+
+# knife4j
+knife4j:
+  enable: true
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.nest.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    org.springframework.jcl: warn
+    com.nest.mapper: debug
+    com.nest.service: info
+    com.nest.controller: info
+
+nest:
+  jwt:
+    admin-secret-key: NESTRENTLANDLORDJWT
+    admin-ttl: 7200000
+    admin-token-name: token
+    user-secret-key: NESTRENTUSERJWT
+    user-ttl: 7200000
+    user-token-name: authentication
+  minio:
+    endpoint: ${NEST_MINIO_ENDPOINT:http://localhost:9012}
+    access-key: ${NEST_MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${NEST_MINIO_SECRET_KEY:minioadmin}
+    bucket: ${NEST_MINIO_BUCKET:nest-rent}
+  ai:
+    admin:
+      base-url: ${NEST_AI_ADMIN_BASE_URL:https://api.siliconflow.cn/v1}
+      api-key: ${NEST_AI_ADMIN_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
+      model-name: ${NEST_AI_ADMIN_MODEL:deepseek-ai/DeepSeek-V3}
+      temperature: 0.1
+    user:
+      base-url: ${NEST_AI_USER_BASE_URL:https://api.siliconflow.cn/v1}
+      api-key: ${NEST_AI_USER_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
+      model-name: ${NEST_AI_USER_MODEL:deepseek-ai/DeepSeek-V3}
+      temperature: 0.7

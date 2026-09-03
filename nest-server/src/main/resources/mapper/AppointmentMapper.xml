@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.AppointmentMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO appointment (tenant_id, house_id, landlord_id, contact_phone,
+            appointment_time, remark, status, create_time, update_time)
+        VALUES (#{tenantId}, #{houseId}, #{landlordId}, #{contactPhone},
+            #{appointmentTime}, #{remark}, 1, NOW(), NOW())
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE appointment
+        SET status = #{status},
+            <if test="cancelReason != null">cancel_reason = #{cancelReason},</if>
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultType="Appointment">
+        SELECT * FROM appointment WHERE id = #{id}
+    </select>
+
+    <select id="selectByTenant" resultType="Appointment">
+        SELECT * FROM appointment
+        WHERE tenant_id = #{tenantId}
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByLandlord" resultType="Appointment">
+        SELECT * FROM appointment
+        WHERE landlord_id = #{landlordId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY create_time DESC
+    </select>
+
+    <select id="selectActiveByTenantAndHouse" resultType="Appointment">
+        SELECT * FROM appointment
+        WHERE tenant_id = #{tenantId}
+          AND house_id = #{houseId}
+          AND status IN (1, 2, 3, 5)
+        LIMIT 1
+    </select>
+
+</mapper>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.ReviewCommentMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO review_comment (review_id, user_type, user_id, content, parent_id, like_count, create_time)
+        VALUES (#{reviewId}, #{userType}, #{userId}, #{content}, #{parentId}, 0, NOW())
+    </insert>
+
+    <select id="selectByReviewId" resultType="ReviewComment">
+        SELECT * FROM review_comment
+        WHERE review_id = #{reviewId}
+        ORDER BY create_time ASC
+    </select>
+
+    <select id="selectById" resultType="ReviewComment">
+        SELECT * FROM review_comment WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM review_comment WHERE id = #{id}
+    </delete>
+
+    <update id="incrementLikeCount">
+        UPDATE review_comment SET like_count = like_count + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decrementLikeCount">
+        UPDATE review_comment
+        SET like_count = GREATEST(like_count - 1, 0)
+        WHERE id = #{id}
+    </update>
+
+</mapper>

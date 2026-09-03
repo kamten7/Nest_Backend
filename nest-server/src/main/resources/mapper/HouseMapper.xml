@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.HouseMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO house (landlord_id, title, description, address, province, city, district,
+            latitude, longitude, price, deposit, area, room_count, hall_count, bathroom_count,
+            floor, total_floor, orientation, rent_type, available_date, utilities, requirements,
+            status, view_count, create_time, update_time)
+        VALUES (#{landlordId}, #{title}, #{description}, #{address}, #{province}, #{city}, #{district},
+            #{latitude}, #{longitude}, #{price}, #{deposit}, #{area}, #{roomCount}, #{hallCount},
+            #{bathroomCount}, #{floor}, #{totalFloor}, #{orientation}, #{rentType}, #{availableDate},
+            #{utilities}, #{requirements}, 1, 0, NOW(), NOW())
+    </insert>
+
+    <update id="update">
+        UPDATE house
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="address != null">address = #{address},</if>
+            <if test="province != null">province = #{province},</if>
+            <if test="city != null">city = #{city},</if>
+            <if test="district != null">district = #{district},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="deposit != null">deposit = #{deposit},</if>
+            <if test="area != null">area = #{area},</if>
+            <if test="roomCount != null">room_count = #{roomCount},</if>
+            <if test="hallCount != null">hall_count = #{hallCount},</if>
+            <if test="bathroomCount != null">bathroom_count = #{bathroomCount},</if>
+            <if test="floor != null">floor = #{floor},</if>
+            <if test="totalFloor != null">total_floor = #{totalFloor},</if>
+            <if test="orientation != null">orientation = #{orientation},</if>
+            <if test="rentType != null">rent_type = #{rentType},</if>
+            <if test="availableDate != null">available_date = #{availableDate},</if>
+            <if test="utilities != null">utilities = #{utilities},</if>
+            <if test="requirements != null">requirements = #{requirements},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE house SET status = #{status}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultType="House">
+        SELECT * FROM house WHERE id = #{id}
+    </select>
+
+    <select id="selectByLandlord" resultType="House">
+        SELECT * FROM house WHERE landlord_id = #{landlordId} ORDER BY create_time DESC
+    </select>
+
+    <select id="selectByCondition" resultType="House">
+        SELECT * FROM house
+        WHERE status = 1
+        <if test="city != null and city != ''">
+            AND city = #{city}
+        </if>
+        <if test="district != null and district != ''">
+            AND district = #{district}
+        </if>
+        <if test="minPrice != null">
+            AND price &gt;= #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND price &lt;= #{maxPrice}
+        </if>
+        <if test="rentType != null and rentType != ''">
+            AND rent_type = #{rentType}
+        </if>
+        <if test="roomCount != null">
+            AND room_count = #{roomCount}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <choose>
+            <when test="sortBy == 'price_asc'">ORDER BY price ASC</when>
+            <when test="sortBy == 'price_desc'">ORDER BY price DESC</when>
+            <when test="sortBy == 'newest'">ORDER BY create_time DESC</when>
+            <otherwise>ORDER BY create_time DESC</otherwise>
+        </choose>
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM house WHERE id = #{id}
+    </delete>
+
+    <update id="incrementViewCount">
+        UPDATE house SET view_count = view_count + 1 WHERE id = #{id}
+    </update>
+
+    <!-- ==================== 地图查询 ==================== -->
+
+    <select id="selectByBounds" resultType="com.nest.vo.HouseMarkerVO">
+        SELECT h.id, h.title, h.price, h.latitude, h.longitude,
+               hi.url AS coverImage
+        FROM house h
+        LEFT JOIN house_image hi ON h.id = hi.house_id AND hi.is_cover = 1
+        WHERE h.status = 1
+          AND h.latitude BETWEEN #{minLat} AND #{maxLat}
+          AND h.longitude BETWEEN #{minLng} AND #{maxLng}
+    </select>
+
+    <select id="selectByLandlordMap" resultType="com.nest.vo.HouseMarkerVO">
+        SELECT h.id, h.title, h.price, h.latitude, h.longitude,
+               hi.url AS coverImage
+        FROM house h
+        LEFT JOIN house_image hi ON h.id = hi.house_id AND hi.is_cover = 1
+        WHERE h.landlord_id = #{landlordId}
+        ORDER BY h.create_time DESC
+    </select>
+
+</mapper>

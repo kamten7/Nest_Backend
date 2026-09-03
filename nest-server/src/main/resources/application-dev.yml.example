@@ -1,0 +1,29 @@
+# ============================================================
+# Nest 租房平台开发环境配置模板
+# 复制此文件为 application-dev.yml 并填入真实值
+# ============================================================
+
+nest:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: localhost
+    port: 3309
+    database: nest_rent
+    username: root
+    password: your_mysql_password
+
+# MinIO 对象存储（开发环境使用 Docker Compose 中的 MinIO）
+# NEST_MINIO_ENDPOINT=http://localhost:9012
+# NEST_MINIO_ACCESS_KEY=minioadmin
+# NEST_MINIO_SECRET_KEY=minioadmin
+# NEST_MINIO_BUCKET=nest-rent
+
+# AI 配置（管理端/房东端）
+# NEST_AI_ADMIN_BASE_URL=https://api.siliconflow.cn/v1
+# NEST_AI_ADMIN_API_KEY=your_siliconflow_key
+# NEST_AI_ADMIN_MODEL=deepseek-ai/DeepSeek-V3
+
+# AI 配置（用户端/租客端）—— 智谱 GLM-4-Flash 免费
+# NEST_AI_USER_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+# NEST_AI_USER_API_KEY=your_zhipu_key
+# NEST_AI_USER_MODEL=glm-4-flash

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.MessageMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message (conversation_id, sender_type, sender_id, content, msg_type, is_read, create_time)
+        VALUES (#{conversationId}, #{senderType}, #{senderId}, #{content}, #{msgType}, 0, NOW())
+    </insert>
+
+    <select id="selectByConversation" resultType="Message">
+        SELECT * FROM message
+        WHERE conversation_id = #{conversationId}
+        ORDER BY create_time ASC
+    </select>
+
+    <select id="selectUnreadCount" resultType="long">
+        SELECT COUNT(*) FROM message
+        WHERE conversation_id = #{conversationId}
+          AND is_read = 0
+          AND (sender_type != #{receiverType} OR sender_id != #{receiverId})
+    </select>
+
+    <update id="updateReadByConversation">
+        UPDATE message
+        SET is_read = 1
+        WHERE conversation_id = #{conversationId}
+          AND is_read = 0
+          AND (sender_type != #{receiverType} OR sender_id != #{receiverId})
+    </update>
+
+    <update id="updateReadUpTo">
+        UPDATE message
+        SET is_read = 1
+        WHERE conversation_id = #{conversationId}
+          AND is_read = 0
+          AND id &lt;= #{upToId}
+          AND (sender_type != #{viewerType} OR sender_id != #{viewerId})
+    </update>
+
+    <select id="selectMaxReadId" resultType="java.lang.Long">
+        SELECT COALESCE(MAX(id), 0) FROM message
+        WHERE conversation_id = #{conversationId}
+          AND is_read = 1
+          AND (sender_type != #{viewerType} OR sender_id != #{viewerId})
+    </select>
+
+</mapper>
