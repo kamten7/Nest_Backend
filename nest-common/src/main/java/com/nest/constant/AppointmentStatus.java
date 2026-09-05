@@ -3,13 +3,13 @@ package com.nest.constant;
 /**
  * 预约状态机常量。
  *
- * <pre>
+ * 
  * 待确认(1) ──房东确认──▶ 已确认(2) ──看房完成──▶ 已看房(3) ──签约──▶ 已成交(5)
  *     │                     │
  *     │ 任一方取消            │ 任一方取消
  *     ▼                     ▼
  * 已取消(4)            已取消(4)
- * </pre>
+ * 
  */
 public final class AppointmentStatus {
 

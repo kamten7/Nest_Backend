@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.WalletTransactionMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wallet_transaction
+        (wallet_id, user_type, user_id, biz_type, amount, direction, balance_after,
+         source, status, biz_no, peer_txn_id, remark, create_time)
+        VALUES (#{walletId}, #{userType}, #{userId}, #{bizType}, #{amount}, #{direction}, #{balanceAfter},
+                #{source}, #{status}, #{bizNo}, #{peerTxnId}, #{remark}, NOW())
+    </insert>
+
+    <update id="updatePeerTxn">
+        UPDATE wallet_transaction SET peer_txn_id = #{peerTxnId} WHERE id = #{id}
+    </update>
+
+    <select id="selectByUser" resultType="WalletTransaction">
+        SELECT id, wallet_id, user_type, user_id, biz_type, amount, direction, balance_after,
+               source, status, biz_no, peer_txn_id, remark, create_time
+        FROM wallet_transaction
+        WHERE user_type = #{userType} AND user_id = #{userId}
+        <if test="bizType != null and bizType != ''">
+            AND biz_type = #{bizType}
+        </if>
+        ORDER BY create_time DESC, id DESC
+    </select>
+
+</mapper>

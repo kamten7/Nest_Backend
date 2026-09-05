@@ -17,11 +17,11 @@ import java.util.Map;
  * 在 WebSocket 连接建立（握手）时校验 JWT，防止伪造 userId 连接。
  *
  *
- * 租客端：Header {@code authentication} 或 queryString {@code ?token=xxx}，用 USER_SECRET_KEY
- * 房东端：Header {@code token} 或 queryString {@code ?token=xxx}，用 ADMIN_SECRET_KEY
+ * 租客端：Header authentication 或 queryString ?token=xxx，用 USER_SECRET_KEY
+ * 房东端：Header token 或 queryString ?token=xxx，用 ADMIN_SECRET_KEY
  *
- * 校验验通过的用户身份（userType+userId）存入 {@code getUserProperties()}，
- * 在 {@code @OnOpen} 里取出使用。</p>
+ * 校验验通过的用户身份（userType+userId）存入 getUserProperties()，
+ * 在 @OnOpen 里取出使用。
  */
 @Slf4j
 public class ChatWebSocketConfigurator extends ServerEndpointConfig.Configurator {

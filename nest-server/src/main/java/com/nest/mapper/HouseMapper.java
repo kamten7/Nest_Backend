@@ -31,6 +31,12 @@ public interface HouseMapper {
     /** 按条件分页查询（用户端） */
     List<House> selectByCondition(HouseQueryDTO dto);
 
+    /** 按评论智能推荐房源：有评论优先，按评论数/均分排序，仅取前 limit 条 */
+    List<com.nest.vo.HouseReviewVO> selectRecommendedByReview(@Param("city") String city,
+                                                              @Param("district") String district,
+                                                              @Param("maxPrice") java.math.BigDecimal maxPrice,
+                                                              @Param("limit") Integer limit);
+
     /** 删除房源 */
     int deleteById(@Param("id") Long id);
 

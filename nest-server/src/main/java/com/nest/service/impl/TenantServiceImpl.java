@@ -19,11 +19,11 @@ import java.util.UUID;
 /**
  * 租客服务实现。
  *
- * <p>登录支持两种方式：
- * <ul>
- *   <li>微信 code 登录：通过 code 换取 openid（需微信 API，当前先 mock），再查数据库</li>
- *   <li>手机号登录：直接用手机号查数据库，不存在则自动注册</li>
- * </ul>
+ * 登录支持两种方式：
+ * 
+ * - 微信 code 登录：通过 code 换取 openid（需微信 API，当前先 mock），再查数据库
+ * - 手机号登录：直接用手机号查数据库，不存在则自动注册
+ * 
  */
 @Slf4j
 @Service

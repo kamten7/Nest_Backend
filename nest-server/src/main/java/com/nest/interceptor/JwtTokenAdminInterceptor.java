@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 房东端 JWT 拦截器 —— 校验 Header {@code token}。
+ * 房东端 JWT 拦截器 —— 校验 Header token。
  */
 @Slf4j
 @Component
@@ -21,7 +21,6 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
      * 请求进入 Controller 前的校验钩子（HandlerInterceptor 核心方法）。
      *
      * 职责：校验 Header 里的 `token` 是否有效，有效则把房东 ID 写入
-     * {@link BaseContext}（ThreadLocal），供整个请求链路（Service 层）读取。
      *
      * @param request  当前 HTTP 请求（从这里取 token 头）
      * @param response HTTP 响应（校验失败时设置 401 状态码）

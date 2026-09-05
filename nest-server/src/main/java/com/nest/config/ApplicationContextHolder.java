@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 /**
  * Spring 应用上下文持有器。
  *
- * 用途：在非 Spring 管理的对象（如 JSR-356 的 {@code @ServerEndpoint}）中获取 Bean。
- * WebSocket 端点对象由容器创建，无法 {@code @Autowired}，通过本类的静态方法拿到 Service。
+ * 用途：在非 Spring 管理的对象（如 JSR-356 的 @ServerEndpoint）中获取 Bean。
+ * WebSocket 端点对象由容器创建，无法 @Autowired，通过本类的静态方法拿到 Service。
  */
 @Component
 public class ApplicationContextHolder implements ApplicationContextAware {

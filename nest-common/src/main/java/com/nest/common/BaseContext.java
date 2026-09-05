@@ -3,8 +3,8 @@ package com.nest.common;
 /**
  * ThreadLocal 用户上下文，JWT 拦截器解析后注入。
  *
- * <p>用法：Service 层通过 {@code BaseContext.getCurrentId()} 获取当前请求的用户/房东 ID，
- * 通过 {@code BaseContext.getCurrentType()} 获取类型（tenant/landlord）。</p>
+ * 用法：Service 层通过 BaseContext.getCurrentId() 获取当前请求的用户/房东 ID，
+ * 通过 BaseContext.getCurrentType() 获取类型（tenant/landlord）。
  */
 public class BaseContext {
 

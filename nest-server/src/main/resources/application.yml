@@ -69,11 +69,11 @@ nest:
   ai:
     admin:
       base-url: ${NEST_AI_ADMIN_BASE_URL:https://api.siliconflow.cn/v1}
-      api-key: ${NEST_AI_ADMIN_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
+      api-key: ${NEST_AI_ADMIN_API_KEY:}
       model-name: ${NEST_AI_ADMIN_MODEL:deepseek-ai/DeepSeek-V3}
       temperature: 0.1
     user:
       base-url: ${NEST_AI_USER_BASE_URL:https://api.siliconflow.cn/v1}
-      api-key: ${NEST_AI_USER_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
+      api-key: ${NEST_AI_USER_API_KEY:}
       model-name: ${NEST_AI_USER_MODEL:deepseek-ai/DeepSeek-V3}
       temperature: 0.7

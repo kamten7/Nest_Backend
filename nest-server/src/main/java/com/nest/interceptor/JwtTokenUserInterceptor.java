@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 租客端 JWT 拦截器 —— 校验 Header {@code authentication}。
+ * 租客端 JWT 拦截器 —— 校验 Header authentication。
  */
 @Slf4j
 @Component

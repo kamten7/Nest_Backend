@@ -36,7 +36,7 @@
 
 ## 📖 项目介绍
 
-**Nest（安居）** 是一套多房东租房平台后端，面向**租客小程序**与**房东 Web 管理端**双端，覆盖房源发布/浏览、地图找房、AI 找房、收藏、预约、评价与实时聊天的全链路租房业务。两端共用后端 `http://localhost:8080`，采用 **JWT 双通道认证**（租客 `authentication` / 房东 `token`）。
+**Nest（安居）** 是一套多房东租房平台后端，面向**租客小程序**与**房东 Web 管理端**双端，覆盖房源发布/浏览、地图找房、AI 找房、收藏、预约、评价、实时聊天，以及**从看房到租房成交、押金/月租缴纳、提前支付、退租与钱包收付**的全链路租房业务。两端共用后端 `http://localhost:8080`，采用 **JWT 双通道认证**（租客 `authentication` / 房东 `token`）。
 
 ---
 
@@ -50,6 +50,9 @@ WebSocket 长连接 + REST 回补，消息全量落库、离线补齐；预约�
 
 **🗺️ 免费地图找房**
 OpenStreetMap + Nominatim 零成本方案，**无并发限制**。Redis 缓存 + 经纬度粗筛 + Haversine 精排，支持地图选点发布、周边检索与 AI 附近推荐。
+
+**💰 租房成交 + 钱包闭环**
+看房结束后确认租房，押金/月租/提前支付（≤5 月）/退租/到期退押金全流程闭环；租金自动入房东钱包，余额与流水同事务、`peer` 双向记账，账实一致。
 
 ---
 
@@ -87,6 +90,12 @@ OpenStreetMap + Nominatim 零成本方案，**无并发限制**。Redis 缓存 +
   <img src="../docs/image/readme-5-house.png" alt="房源管理" width="78%">
 </p>
 
+**💰 租房成交与钱包** — 订单状态流转 + 钱包余额/流水
+
+<p align="center">
+  <img src="../docs/image/readme-6-rent.png" alt="租房成交与钱包" width="78%">
+</p>
+
 ---
 
 ## 🛠 技术栈
@@ -101,6 +110,7 @@ OpenStreetMap + Nominatim 零成本方案，**无并发限制**。Redis 缓存 +
 | AI | LangChain4j 1.18.1 | 真实 Function Calling Agent |
 | 聊天 | WebSocket（JSR-356） | 微信级实时双向 |
 | 地图 | OpenStreetMap + Nominatim | 免费、无并发限制 |
+| 调度 | Spring @Scheduled | 房租到期提醒 / 押金退回 |
 | 文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
 
 ---
@@ -109,14 +119,15 @@ OpenStreetMap + Nominatim 零成本方案，**无并发限制**。Redis 缓存 +
 
 ```
 backend/
-├── nest-common/          # 工具类 / Result / BaseContext / GeoUtils / 常量
-├── nest-pojo/            # Entity / DTO / VO（12 实体）
-├── nest-server/          # Controller / Service / Mapper / AI / WebSocket
+├── nest-common/          # 工具类 / Result / BaseContext / 常量 / 周期工具
+├── nest-pojo/            # Entity / DTO / VO（18 实体：12 业务 + 钱包/租房 6）
+├── nest-server/          # Controller / Service / Mapper / AI / WebSocket / task
 │   └── src/main/java/com/nest/
 │       ├── AI/           # 🤖 LangChain4j Agent：模型配置 + @Tool 工具集
 │       ├── websocket/    # 💬 聊天端点 + 握手鉴权
+│       ├── task/         # ⏰ 定时任务（房租提醒 / 押金退回）
 │       └── controller/   # 租客 /user/** · 房东 /admin/**
-└── sql/                  # 建库脚本 nest_rent.sql + 测试数据
+└── sql/                  # nest_rent.sql + wallet.sql + rent.sql + 测试数据
 ```
 
 ---
@@ -127,8 +138,10 @@ backend/
 # 1. 启动 Docker 基础设施（MySQL / Redis / MinIO，在项目根目录）
 cd .. && docker-compose up -d
 
-# 2. 初始化数据库（当前目录 backend/）
+# 2. 初始化数据库（当前目录 backend/，含新增的钱包/租房表）
 mysql -u root -p -P 3309 < sql/nest_rent.sql
+mysql -u root -p -P 3309 < sql/wallet.sql
+mysql -u root -p -P 3309 < sql/rent.sql
 
 # 3. 配置开发环境并填入 MySQL / Redis / MinIO / AI API Key
 cp nest-server/src/main/resources/application-dev.yml.example \
@@ -161,6 +174,20 @@ flowchart LR
 ## 🗺️ 地图找房
 
 前端地图缩放/拖动即查视野内已上架房源标记（`/user/house/map`）。后端先按**外接矩形**（可走经纬度索引）粗筛，再用 Haversine 精确排序；地址 ↔ 坐标互转由 Nominatim 完成，Redis 缓存 30 天并用 `synchronized` 限速至 1 req/s。
+
+## 💰 租房成交与钱包
+
+看房结束后确认租房，缴纳押金进入租期循环：每月缴租、**单次最多提前支付 5 个月**、到期前 3 天提醒；任意月可申请退租，**租期结束才退还押金**。资金统一走**用户钱包**（租客/房东双端账户），押金/房租**自动注入对应房东钱包**，房东可在 Web 端查看收款流水、提现到微信零钱（预留）；余额变更与流水同事务、`peer_txn_id` 双向记账。
+
+```mermaid
+stateDiagram-v2
+  [*] --> 待缴押金(1)
+  待缴押金 --> 租房中(2): 缴纳押金
+  租房中 --> 租房中: 每月缴租 / 提前支付≤5月
+  租房中 --> 退租申请中(3): 申请退租
+  退租申请中 --> 已退租(4): 租期结束·退押金
+  待缴押金 --> 已取消(5)
+```
 
 ---
 

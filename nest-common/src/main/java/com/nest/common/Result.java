@@ -37,7 +37,7 @@ public class Result<T> implements Serializable {
         return new Result<>(1, msg, data);
     }
 
-    /** 无数据成功响应，仅带自定义消息，返回 Result&lt;Void&gt; */
+    /** 无数据成功响应，仅带自定义消息，返回 Result<Void> */
     public static Result<Void> successMsg(String msg) {
         return new Result<>(1, msg, null);
     }

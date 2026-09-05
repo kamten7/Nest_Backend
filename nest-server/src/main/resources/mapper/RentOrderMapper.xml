@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.RentOrderMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rent_order
+        (order_no, appointment_id, tenant_id, house_id, landlord_id, deposit, monthly_rent,
+         status, start_date, next_due_period, paid_months, create_time, update_time)
+        VALUES (#{orderNo}, #{appointmentId}, #{tenantId}, #{houseId}, #{landlordId}, #{deposit}, #{monthlyRent},
+                #{status}, #{startDate}, #{nextDuePeriod}, #{paidMonths}, NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultType="RentOrder">
+        SELECT * FROM rent_order WHERE id = #{id}
+    </select>
+
+    <select id="selectActiveByTenantAndHouse" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE tenant_id = #{tenantId} AND house_id = #{houseId}
+          AND status IN (1, 2, 3)
+        LIMIT 1
+    </select>
+
+    <select id="selectByTenant" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE tenant_id = #{tenantId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY create_time DESC, id DESC
+    </select>
+
+    <select id="selectByLandlord" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE landlord_id = #{landlordId}
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY create_time DESC, id DESC
+    </select>
+
+    <select id="selectByStatus" resultType="RentOrder">
+        SELECT * FROM rent_order WHERE status = #{status}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE rent_order SET status = #{status}, update_time = NOW() WHERE id = #{id}
+    </update>
+
+    <update id="advancePeriod">
+        UPDATE rent_order
+        SET next_due_period = #{nextDuePeriod}, paid_months = #{paidMonths}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+</mapper>
