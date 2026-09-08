@@ -10,11 +10,12 @@ import java.time.Duration;
 /**
  * LangChain4j 流式聊天模型配置 —— 房东端 + 租客端独立供应商。
  *
- * 设计
- * - 房东端（管理端）：temperature=0.1，默认硅基流动 DeepSeek-V3，确保数据查询确定性
- * - 租客端（用户端）：temperature=0.7，默认智谱 GLM-4-Flash（免费），支持自然对话
- * - 供应商切换只需改 application.yml 配置，代码零改动
- * 
+ * <h3>设计</h3>
+ * <ul>
+ *   <li>房东端（管理端）：temperature=0.1，默认硅基流动 DeepSeek-V3，确保数据查询确定性</li>
+ *   <li>租客端（用户端）：temperature=0.7，默认智谱 GLM-4-Flash（免费），支持自然对话</li>
+ *   <li>供应商切换只需改 application.yml 配置，代码零改动</li>
+ * </ul>
  */
 @Configuration
 public class AiModelConfig {

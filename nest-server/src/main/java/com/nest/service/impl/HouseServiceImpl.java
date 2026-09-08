@@ -21,7 +21,6 @@ import com.nest.service.HouseService;
 import com.nest.service.MinioService;
 import com.nest.utils.GeoUtils;
 import com.nest.vo.HouseMarkerVO;
-import com.nest.vo.HouseReviewVO;
 import com.nest.vo.HouseVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -226,20 +225,6 @@ public class HouseServiceImpl implements HouseService {
     }
 
     /**
-     * 按评论智能推荐房源。
-     *
-     * 流程：有评论的房源优先，按评论数、平均分排序，取前 limit 条；
-     * 城市/区域/预算可为空，为空则不限制。
-     */
-    @Override
-    public List<HouseReviewVO> recommendByReview(String city, String district,
-                                                 java.math.BigDecimal maxPrice, Integer limit) {
-        // 默认推荐 3 条，最多 5 条（避免返回过长文本）
-        int size = (limit != null && limit > 0 && limit <= 5) ? limit : 3;
-        return houseMapper.selectRecommendedByReview(city, district, maxPrice, size);
-    }
-
-    /**
      * 房源详情（用户端，公开）。
      *
      * 只允许查看已上架的房源；每次访问浏览量 +1。
@@ -325,11 +310,11 @@ public class HouseServiceImpl implements HouseService {
      * 地图房源标记查询（用户端/房东端共用）。
      *
      * 支持两种入参模式：
-     * 
-     * - 中心点+半径：传 lat, lng, radius，先用 boundingBox 把圆形范围换算成矩形
-     * - 直接给矩形：传 minLat, maxLat, minLng, maxLng
-     * 
-     * 参数缺失或非法（经纬度越界）抛 MAP_PARAM_INVALID。
+     * <ul>
+     *   <li>中心点+半径：传 {@code lat, lng, radius}，先用 {@code boundingBox} 把圆形范围换算成矩形</li>
+     *   <li>直接给矩形：传 {@code minLat, maxLat, minLng, maxLng}</li>
+     * </ul>
+     * 参数缺失或非法（经纬度越界）抛 {@code MAP_PARAM_INVALID}。
      *
      * @param minLat 矩形南边界（或中心点模式下为 null）
      * @param maxLat 矩形北边界（或中心点模式下为 null）

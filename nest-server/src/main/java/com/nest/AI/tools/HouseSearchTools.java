@@ -4,7 +4,6 @@ import com.nest.common.PageResult;
 import com.nest.dto.HouseQueryDTO;
 import com.nest.service.HouseService;
 import com.nest.vo.HouseMarkerVO;
-import com.nest.vo.HouseReviewVO;
 import com.nest.vo.HouseVO;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +59,8 @@ public class HouseSearchTools {
         dto.setKeyword(keyword);                 // 关键词：匹配标题/描述/地址
         dto.setCity(city);                       // 城市（AI 可能传空，表示不限）
         dto.setDistrict(district);               // 区域
-        dto.setMinPrice(sanitizePrice(minPrice));                 // 最低价：<=0 视为不限
-        dto.setMaxPrice(sanitizePrice(maxPrice));                 // 最高价：<=0 视为不限
+        dto.setMinPrice(minPrice != null ? BigDecimal.valueOf(minPrice) : null);   // 最低价，null=不限
+        dto.setMaxPrice(maxPrice != null ? BigDecimal.valueOf(maxPrice) : null);   // 最高价，null=不限
         dto.setRentType(rentType);               // 出租方式
         dto.setRoomCount(roomCount);             // 室数
         dto.setPage(1);                          // 固定第一页（工具场景不分页）
@@ -154,55 +153,57 @@ public class HouseSearchTools {
     }
 
     /**
-     * 智能推荐房源（按评论）。
+     * 智能推荐房源。
      *
-     * 流程：预算 <=0 视为不限；按评论数/均分排序返回 2-3 套（有评论优先）；
-     * 城市/区域/预算仅当用户给出时才作为条件。
+     * @param budget      预算上限（元/月）
+     * @param city        城市
+     * @param preferences 偏好描述，如 '近地铁、朝南'
+     * @param count       推荐数量
+     * @return 推荐房源摘要列表
      */
     @Tool("根据预算和偏好智能推荐房源")
     public String recommendHouses(Double budget, String city, String preferences, Integer count) {
-        // 1. 预算：<=0 视为不限，避免"没提预算=0"把结果清空
-        BigDecimal maxPrice = sanitizePrice(budget);
-        // 2. 默认推荐 3 套，最多 5 套
-        int limit = (count != null && count > 0 && count <= 5) ? count : 3;
-        List<HouseReviewVO> houses = houseService.recommendByReview(city, null, maxPrice, limit);
+        HouseQueryDTO dto = new HouseQueryDTO();
+        dto.setCity(city);
+        dto.setMaxPrice(budget != null ? BigDecimal.valueOf(budget) : null);
+        dto.setPage(1);
+        dto.setPageSize(count != null && count > 0 && count <= 5 ? count : 3);
+        dto.setSortBy("newest");
+
+        PageResult<HouseVO> result = houseService.list(dto);
+        List<HouseVO> houses = result.getRecords();
         if (houses == null || houses.isEmpty()) {
-            return "暂时没有符合条件的房源，可换个区域或稍后再试";
+            return "没有符合预算" + (budget != null ? budget + "元" : "") + "的房源，建议适当放宽预算";
         }
 
         StringJoiner sb = new StringJoiner("\n");
+        sb.add("为您推荐以下房源：");
         for (int i = 0; i < houses.size(); i++) {
-            HouseReviewVO h = houses.get(i);
-            String rating = (h.getReviewCount() != null && h.getReviewCount() > 0)
-                    ? "，好评 " + h.getAvgRating() + "分 · " + h.getReviewCount() + "条评论"
-                    : "";
-            sb.add((i + 1) + ". " + h.getTitle() + "，价格 " + h.getPrice() + "元/月，位置 "
-                    + (h.getDistrict() == null ? "" : h.getDistrict()) + rating
-                    + "，房源ID " + h.getId());
+            HouseVO h = houses.get(i);
+            sb.add((i + 1) + ". " + h.getTitle() + "，¥" + h.getPrice() + "/月，"
+                    + h.getDistrict() + (h.getTags() != null && !h.getTags().isEmpty()
+                    ? "，" + String.join("、", h.getTags()) : "")
+                    + "（房源ID:" + h.getId() + "）");
         }
         return sb.toString();
     }
 
     // ==================== 内部工具 ====================
 
-    /** 价格容错：null 或 <=0 视为不限（返回 null），避免"没提预算=0"把结果清空 */
-    private BigDecimal sanitizePrice(Double value) {
-        return (value != null && value > 0) ? BigDecimal.valueOf(value) : null;
-    }
-
-    /** 房源列表 → 摘要文本（每条独立一行，便于 LLM 逐条呈现） */
+    /** 房源列表 → 摘要文本 */
     private String formatHouses(List<HouseVO> houses) {
         if (houses == null || houses.isEmpty()) {
-            return "没有找到符合条件的房源，建议放宽预算或换个区域";
+            return "没有找到符合条件的房源";
         }
         StringJoiner sb = new StringJoiner("\n");
         for (int i = 0; i < houses.size(); i++) {
             HouseVO h = houses.get(i);
-            sb.add((i + 1) + ". " + h.getTitle() + "，价格 " + h.getPrice() + "元/月，位置 "
+            sb.add((i + 1) + ". " + h.getTitle() + "，¥" + h.getPrice() + "/月，"
                     + (h.getCity() == null ? "" : h.getCity())
                     + (h.getDistrict() == null ? "" : h.getDistrict())
-                    + "，房源ID " + h.getId());
+                    + "（房源ID:" + h.getId() + "）");
         }
+        sb.add("回复用户时可提及房源ID方便进一步查看详情");
         return sb.toString();
     }
 }

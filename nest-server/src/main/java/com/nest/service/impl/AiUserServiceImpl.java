@@ -18,10 +18,10 @@ import java.io.PrintWriter;
 /**
  * AI 找房服务实现 —— SSE 流式输出。
  *
- * 复用外卖验证过的 AsyncContext + PrintWriter + writeSSE 模式。
+ * <p>复用外卖验证过的 {@code AsyncContext + PrintWriter + writeSSE} 模式。
  * Nest 是真 Function Calling（AiServices），工具调用由 LangChain4j 内部处理，
- * onPartialResponse 只在最终文字生成时触发，因此流式输出只需把
- * 每个文字块写成 SSE 事件。
+ * {@code onPartialResponse} 只在最终文字生成时触发，因此流式输出只需把
+ * 每个文字块写成 SSE 事件。</p>
  */
 @Slf4j
 @Service

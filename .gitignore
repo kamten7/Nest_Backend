@@ -4,4 +4,5 @@ target/
 *.jar
 .idea/
 *.iml
-
+docx/
+.omo/

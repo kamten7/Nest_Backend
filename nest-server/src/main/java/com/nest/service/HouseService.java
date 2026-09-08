@@ -34,10 +34,6 @@ public interface HouseService {
     /** 用户端房源列表（公开，分页+筛选） */
     PageResult<HouseVO> list(HouseQueryDTO dto);
 
-    /** 按评论智能推荐房源：有评论优先，按评论数/均分排序，返回前 limit 条 */
-    java.util.List<com.nest.vo.HouseReviewVO> recommendByReview(String city, String district,
-                                                                 java.math.BigDecimal maxPrice, Integer limit);
-
     /** 用户端房源详情（含图片+标签+房东信息） */
     HouseVO detail(Long houseId);
 

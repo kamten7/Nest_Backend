@@ -36,18 +36,4 @@ public final class MessageConstant {
     public static final String CONVERSATION_NOT_FOUND = "会话不存在";
     public static final String MESSAGE_SEND_FAILED = "消息发送失败";
     public static final String MESSAGE_CONTENT_EMPTY = "消息内容不能为空";
-
-    // ==================== 钱包 ====================
-    public static final String WALLET_AMOUNT_INVALID = "金额必须大于0";
-    public static final String WALLET_BALANCE_INSUFFICIENT = "钱包余额不足";
-
-    // ==================== 租房订单 ====================
-    public static final String RENT_ORDER_NOT_FOUND = "租房订单不存在";
-    public static final String RENT_ORDER_NOT_OWNER = "不是您的订单，无权操作";
-    public static final String RENT_ORDER_STATUS_INVALID = "当前订单状态不允许此操作";
-    public static final String RENT_APPOINTMENT_INVALID = "请先完成看房后再确认租房";
-    public static final String RENT_ALREADY_EXISTS = "您已存在进行中的租房订单";
-    public static final String RENT_PERIOD_INVALID = "只能缴纳下一个待缴周期的房租";
-    public static final String RENT_ALREADY_PAID = "该周期房租已缴纳";
-    public static final String RENT_AHEAD_MONTHS_INVALID = "提前支付月数须在1-5个月之间";
 }

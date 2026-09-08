@@ -13,11 +13,11 @@ import java.util.Map;
 /**
  * JWT 工具类：生成、解析、校验 Token。
  *
- * 内部使用 SHA-256 对传入密钥字符串做哈希，确保密钥材料 ≥ 256 位，
- * 满足 JJWT 0.12.x 的 HMAC-SHA 最低安全要求。
+ * <p>内部使用 SHA-256 对传入密钥字符串做哈希，确保密钥材料 ≥ 256 位，
+ * 满足 JJWT 0.12.x 的 HMAC-SHA 最低安全要求。</p>
  *
- * 典型调用链：登录成功 → createToken 签发令牌 → 前端存起来
- * → 每次请求带上 → 拦截器用 parseToken 解析出 userId。
+ * <p>典型调用链：登录成功 → {@code createToken} 签发令牌 → 前端存起来
+ * → 每次请求带上 → 拦截器用 {@code parseToken} 解析出 userId。</p>
  */
 public final class JwtUtil {
 

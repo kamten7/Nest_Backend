@@ -65,10 +65,10 @@
         <if test="district != null and district != ''">
             AND district = #{district}
         </if>
-        <if test="minPrice != null and minPrice > 0">
+        <if test="minPrice != null">
             AND price &gt;= #{minPrice}
         </if>
-        <if test="maxPrice != null and maxPrice > 0">
+        <if test="maxPrice != null">
             AND price &lt;= #{maxPrice}
         </if>
         <if test="rentType != null and rentType != ''">
@@ -78,9 +78,7 @@
             AND room_count = #{roomCount}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND (title LIKE CONCAT('%', #{keyword}, '%')
-                 OR description LIKE CONCAT('%', #{keyword}, '%')
-                 OR address LIKE CONCAT('%', #{keyword}, '%'))
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <choose>
             <when test="sortBy == 'price_asc'">ORDER BY price ASC</when>
@@ -88,29 +86,6 @@
             <when test="sortBy == 'newest'">ORDER BY create_time DESC</when>
             <otherwise>ORDER BY create_time DESC</otherwise>
         </choose>
-    </select>
-
-    <!-- ==================== 智能推荐（按评论） ==================== -->
-    <select id="selectRecommendedByReview" resultType="com.nest.vo.HouseReviewVO">
-        SELECT h.id, h.title, h.price, h.city, h.district, h.address,
-               h.area, h.room_count, h.hall_count, h.bathroom_count,
-               ROUND(AVG(r.rating), 1) AS avgRating,
-               COUNT(r.id) AS reviewCount
-        FROM house h
-        LEFT JOIN review r ON r.house_id = h.id
-        WHERE h.status = 1
-        <if test="city != null and city != ''">
-            AND h.city = #{city}
-        </if>
-        <if test="district != null and district != ''">
-            AND h.district = #{district}
-        </if>
-        <if test="maxPrice != null and maxPrice > 0">
-            AND h.price &lt;= #{maxPrice}
-        </if>
-        GROUP BY h.id
-        ORDER BY COUNT(r.id) DESC, AVG(r.rating) DESC, h.create_time DESC
-        LIMIT #{limit}
     </select>
 
     <delete id="deleteById">

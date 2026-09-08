@@ -16,9 +16,10 @@ import java.util.Map;
 
 /**
  * 通知演示控制器 —— 用于前端弹窗通知的端到端测试。
- * 租客预约看房或发消息时，后端会调用
+ *
+ * <p>真实场景（阶段 5/8）：租客预约看房或发消息时，后端会调用
  * {@link ChatWebSocketServer#sendToUser} 推送相同结构的 JSON 给房东。
- * 本接口模拟该推送，让前端弹窗先跑通。
+ * 本接口模拟该推送，让前端弹窗先跑通。</p>
  */
 @Slf4j
 @RestController

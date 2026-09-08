@@ -21,8 +21,8 @@ import java.util.HexFormat;
 /**
  * Nominatim 地理编码实现。
  *
- * 调用 OpenStreetMap Nominatim API，结果缓存 Redis（30 天 TTL），
- * 内置 1 req/s 速率限制以遵守 Nominatim 使用条款。
+ * <p>调用 OpenStreetMap Nominatim API，结果缓存 Redis（30 天 TTL），
+ * 内置 1 req/s 速率限制以遵守 Nominatim 使用条款。</p>
  */
 @Slf4j
 @Service

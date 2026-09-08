@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 /**
  * 会话实体（参考抖音私信设计）。
  *
- * 会话唯一性由 (user1_type, user1_id, user2_type, user2_id) 保证，
- * 无论谁发起对话，都映射到同一条会话记录。
+ * <p>会话唯一性由 (user1_type, user1_id, user2_type, user2_id) 保证，
+ * 无论谁发起对话，都映射到同一条会话记录。</p>
  */
 @Data
 @Builder

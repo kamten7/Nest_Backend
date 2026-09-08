@@ -16,7 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * 聊天 WebSocket 端点。
  *
- * 连接路径：ws://localhost:8080/ws/chat/{userType/{userId}?token=xxx}
+ * 连接路径：{@code ws://localhost:8080/ws/chat/{userType}/{userId}?token=xxx}
  * 握手时通过 {@link ChatWebSocketConfigurator} 校验 JWT。
  *
  * 在线用户池设计
@@ -24,7 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 关闭时只移除自己，不影响其他连接。
  *
  * 消息处理（onMessage）
- * 客户端发 {type, toType, toId, content, msgType, clientMsgId}：
+ * 客户端发 {@code {type, toType, toId, content, msgType, clientMsgId}}：
  *
  * type=chat → {@link ChatService#send}（找会话/落库/转发）
  * type=read_receipt → {@link ChatService#markReadByReceipt}（置已读并把回执回推给发送方）
@@ -82,11 +82,9 @@ public class ChatWebSocketServer {
      * @param userId   路径参数 userId（Session 属性缺失时兜底用）
      */
     @OnClose
-    public void onClose(
-            Session session,// 已关闭的 Session
-            @PathParam("userType") String userType, // 路径参数 userType（Session 属性缺失时兜底用）
-            @PathParam("userId") String userId // 路径参数 userId
-    ) {
+    public void onClose(Session session,
+                        @PathParam("userType") String userType,
+                        @PathParam("userId") String userId) {
         Object authId = session.getUserProperties().get(ChatWebSocketConfigurator.ATTR_USER_ID);
         Object authType = session.getUserProperties().get(ChatWebSocketConfigurator.ATTR_USER_TYPE);
         String key = (authType == null ? userType : authType) + ":"

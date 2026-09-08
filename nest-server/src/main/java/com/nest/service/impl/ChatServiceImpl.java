@@ -107,10 +107,10 @@ public class ChatServiceImpl implements ChatService {
     /**
      * 获取用户会话列表。
      * 主要是根据用户类型和 ID，查询该用户的所有会话记录。
-     * @param userType 用户类型：tenant / landlord
-     * @param userId 用户 ID
-     * @param page 当前页码
-     * @param pageSize 每页记录数
+     * @param userType
+     * @param userId
+     * @param page
+     * @param pageSize
      * @return
      */
     @Override
