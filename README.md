@@ -61,7 +61,7 @@
 
 
 **💬 实时聊天 + 预约联动**
-WebSocket 长连接 + REST 历史回补，消息全量落库、离线补齐；握手阶段 JWT 校验身份且要求**路径 userId 与 token 一致**（防冒充）。预约状态变更（创建/确认/取消）经**同一通道**实时推送，双端状态一致。
+基于 JSR-356（Jakarta WebSocket API）的全双工实时通道，运行于内嵌 Tomcat 容器。握手阶段完成 JWT 校验（要求路径 userId 与 token 一致，防冒充），消息全量落库、离线补齐；预约状态变更（创建/确认/取消）经**同一通道**实时推送，双端状态一致。
 
 
 **🗺️ 免费地图找房**
@@ -143,7 +143,7 @@ OpenStreetMap + Nominatim 零成本方案，**Redis 缓存 30 天 + 1 次/秒限
 | 存储 | MinIO（Docker 9012） | 房源图片（S3 兼容） |
 | 认证 | JWT 双通道（JJWT 0.12.6） | 租客 / 房东独立密钥、独立拦截器 |
 | AI | LangChain4j 1.18.1 | 真实 Function Calling Agent（DeepSeek-V3 @ SiliconFlow / GLM-4-Flash） |
-| 聊天 | WebSocket（JSR-356） | 握手 JWT 鉴权，微信级实时双向 |
+| 聊天 | JSR-356（Jakarta WebSocket API） | 运行于内嵌 Tomcat，握手 JWT 鉴权，全双工实时双向 |
 | 地图 | OpenStreetMap + Nominatim | 免费、Redis 缓存 + 1 req/s 限速 |
 | 文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
 
@@ -215,7 +215,7 @@ flowchart LR
 ## 💬 实时聊天
 
 
-租客 ↔ 房东一对一实时聊天，WebSocket 长连接 + REST 历史回补。认证走握手 JWT 校验（并要求路径 userId 与 token 一致，防冒充）；消息全量落 `message` 表（`is_read` 标记），离线期间推送丢弃但消息留存、上线拉取补齐；会话按用户对双向归一（两人只保留一条）；支持已读回执（`read_receipt`）与输入状态（`typing`）转发，心跳 30s 保活。
+租客 ↔ 房东一对一实时聊天，基于 JSR-356（Jakarta WebSocket API）的全双工通道，运行于 Spring Boot 内嵌 Tomcat 容器。握手阶段（`ChatWebSocketConfigurator.modifyHandshake`）完成 JWT 校验并存储可信身份；消息全量落 `message` 表（`is_read` 标记），离线期间推送丢弃但消息留存、上线拉取补齐；会话按用户对双向归一（两人只保留一条）；支持已读回执（`read_receipt`）与输入状态（`typing`）转发，心跳保活。
 
 
 ## 🗺️ 地图找房
