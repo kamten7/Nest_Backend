@@ -16,7 +16,7 @@ public final class JwtConstant {
     // ==================== 房东端 ====================
 
     /** 房东端 JWT 签名密钥 */
-    public static final String ADMIN_SECRET_KEY = "NESTRENTLANDLORDJWT";
+    public static final String ADMIN_SECRET_KEY = "${nest.jwt.admin-secret}";
     /** 房东端 Token 有效期（毫秒）：2 小时 */
     public static final long ADMIN_TTL = 7200000;
     /** 房东端前端传递的 Header 名称 */
@@ -25,7 +25,7 @@ public final class JwtConstant {
     // ==================== 租客端 ====================
 
     /** 租客端 JWT 签名密钥 */
-    public static final String USER_SECRET_KEY = "NESTRENTUSERJWT";
+    public static final String USER_SECRET_KEY = "${nest.jwt.user-secret}";
     /** 租客端 Token 有效期（毫秒）：2 小时 */
     public static final long USER_TTL = 7200000;
     /** 租客端前端传递的 Header 名称 */

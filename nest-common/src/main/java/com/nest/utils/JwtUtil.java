@@ -26,10 +26,6 @@ public final class JwtUtil {
 
     /**
      * 把任意长度的密钥字符串转换为 256 位的 SecretKey。
-     * SHA-256 输出始终为 32 字节，满足 HS256 要求。
-     *
-     * @param secret 原始密钥字符串（如 "NESTRENTLANDLORDJWT"）
-     * @return HMAC 签名用的 SecretKey 对象
      */
     private static SecretKey toSecretKey(String secret) {
         try {
@@ -46,12 +42,7 @@ public final class JwtUtil {
     }
 
     /**
-     * 生成 JWT Token。
-     *
-     * @param secret   签名密钥（任意长度字符串，内部做 SHA-256 哈希，保证 ≥ 256 位）
-     * @param ttlMillis 有效期（毫秒）
-     * @param claims   自定义声明（存放 userId、userType 等）
-     * @return JWT 字符串
+     * 生成 JWT Token
      */
     public static String createToken(String secret, long ttlMillis, Map<String, Object> claims) {
         // 先把密钥字符串转成密钥对象（哈希成 256 位）
@@ -68,11 +59,7 @@ public final class JwtUtil {
     }
 
     /**
-     * 解析 Token，返回 Claims。
-     *
-     * @param secret 签名密钥（必须和签发时一致，否则验签失败）
-     * @param token  前端传来的 JWT 字符串
-     * @return 载荷 Claims（可用 get("userId", Long.class) 取值）
+     * 解析 Token，返回 Claims
      */
     public static Claims parseToken(String secret, String token) {
         // 用同一个密钥对象才能正确验签
@@ -87,10 +74,6 @@ public final class JwtUtil {
 
     /**
      * 校验 Token 是否有效。
-     *
-     * @param secret 签名密钥
-     * @param token  JWT 字符串
-     * @return true=有效（签名正确且未过期），false=无效
      */
     public static boolean validate(String secret, String token) {
         try {

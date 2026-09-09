@@ -19,17 +19,17 @@ spring:
       password: ${nest.datasource.password}
   data:
     redis:
-      host: 127.0.0.1
-      port: 6381
-      password: 123456
-      database: 1
-      timeout: 5000ms
+      host: ${NEST_REDIS_HOST:}
+      port: ${NEST_REDIS_PORT:}
+      password: ${NEST_REDIS_PASSWORD:}
+      database: ${NEST_REDIS_DATABASE:}
+      timeout: ${NEST_REDIS_TIMEOUT:}
       lettuce:
         pool:
-          min-idle: 4
+          min-idle: ${NEST_REDIS_POOL_MIN_IDLE:}
           max-idle: 8
-          max-active: 16
-          max-wait: 3000ms
+          max-active: ${NEST_REDIS_POOL_MAX_ACTIVE:}
+          max-wait: ${NEST_REDIS_POOL_MAX_WAIT:}
 
 # springdoc-openapi
 springdoc:
@@ -55,25 +55,25 @@ logging:
 
 nest:
   jwt:
-    admin-secret-key: NESTRENTLANDLORDJWT
+    admin-secret-key: ${NEST_JWT_ADMIN_SECRET:}
     admin-ttl: 7200000
     admin-token-name: token
-    user-secret-key: NESTRENTUSERJWT
+    user-secret-key: ${NEST_JWT_USER_SECRET:}
     user-ttl: 7200000
     user-token-name: authentication
   minio:
-    endpoint: ${NEST_MINIO_ENDPOINT:http://localhost:9012}
-    access-key: ${NEST_MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${NEST_MINIO_SECRET_KEY:minioadmin}
-    bucket: ${NEST_MINIO_BUCKET:nest-rent}
+    endpoint: ${NEST_MINIO_ENDPOINT:}
+    access-key: ${NEST_MINIO_ACCESS_KEY:}
+    secret-key: ${NEST_MINIO_SECRET_KEY:}
+    bucket: ${NEST_MINIO_BUCKET:}
   ai:
     admin:
-      base-url: ${NEST_AI_ADMIN_BASE_URL:https://api.siliconflow.cn/v1}
-      api-key: ${NEST_AI_ADMIN_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
-      model-name: ${NEST_AI_ADMIN_MODEL:deepseek-ai/DeepSeek-V3}
+      base-url: ${NEST_AI_ADMIN_BASE_URL:}
+      api-key: ${NEST_AI_ADMIN_API_KEY:}
+      model-name: ${NEST_AI_ADMIN_MODEL:}
       temperature: 0.1
     user:
-      base-url: ${NEST_AI_USER_BASE_URL:https://api.siliconflow.cn/v1}
-      api-key: ${NEST_AI_USER_API_KEY:sk-lyixomwtyamtjaxiigtwaeygewbpxpthzkrlpylxosdaryqf}
-      model-name: ${NEST_AI_USER_MODEL:deepseek-ai/DeepSeek-V3}
+      base-url: ${NEST_AI_USER_BASE_URL:}
+      api-key: ${NEST_AI_USER_API_KEY:}
+      model-name: ${NEST_AI_USER_MODEL:}
       temperature: 0.7
