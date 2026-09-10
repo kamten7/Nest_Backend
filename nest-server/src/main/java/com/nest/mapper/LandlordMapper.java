@@ -18,4 +18,7 @@ public interface LandlordMapper {
 
     /** 注册新房东 */
     int insert(Landlord landlord);
+
+    /** 更新密码（用于 MD5 自动升级 BCrypt） */
+    int updatePassword(@Param("id") Long id, @Param("password") String password);
 }

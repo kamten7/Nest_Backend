@@ -16,4 +16,8 @@
         VALUES (#{name}, #{phone}, #{password}, #{status}, NOW(), NOW())
     </insert>
 
+    <update id="updatePassword">
+        UPDATE landlord SET password = #{password} WHERE id = #{id}
+    </update>
+
 </mapper>

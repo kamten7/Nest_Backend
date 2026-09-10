@@ -8,8 +8,8 @@ import lombok.Data;
 @Data
 public class LandlordLoginDTO {
 
-    /** 手机号 */
+
     private String phone;
-    /** 密码（明文，后端 MD5 后比对） */
+
     private String password;
 }
