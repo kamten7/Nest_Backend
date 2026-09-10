@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.nest</groupId>
+        <artifactId>nest-rent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>nest-chat</artifactId>
+    <packaging>jar</packaging>
+    <name>Nest Chat</name>
+    <description>聊天模块：WebSocket 传输层（Netty / JSR-356）+ 消息推送服务</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-common</artifactId>
+        </dependency>
+
+        <!-- WebSocket（含 JSR-356 端点导出 + 内嵌容器支持） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- Netty 传输层 -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,8 +1,8 @@
 package com.nest.service.impl;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.nest.chat.push.PushService;
 import com.nest.common.BaseContext;
 import com.nest.common.PageResult;
 import com.nest.constant.AppointmentStatus;
@@ -21,7 +21,6 @@ import com.nest.mapper.LandlordMapper;
 import com.nest.mapper.TenantMapper;
 import com.nest.service.AppointmentService;
 import com.nest.vo.AppointmentVO;
-import com.nest.websocket.ChatWebSocketServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +41,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final HouseImageMapper houseImageMapper;
     private final LandlordMapper landlordMapper;
     private final TenantMapper tenantMapper;
+    private final PushService pushService;
 
     // ==================== 租客端 ====================
 
@@ -230,12 +230,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         return vos;
     }
 
-    /** 通过 WebSocket 推送通知。 */
+    /** 推送预约通知。 */
     private void pushNotification(String userType, Long userId, String type, String title, String content) {
-        JSONObject msg = new JSONObject();
-        msg.put("type", type);
-        msg.put("title", title);
-        msg.put("content", content);
-        ChatWebSocketServer.sendToUser(userType, userId, msg.toJSONString());
+        pushService.pushNotice(userType, userId, type, title, content);
     }
 }

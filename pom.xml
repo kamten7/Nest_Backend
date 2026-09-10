@@ -21,6 +21,7 @@
         <module>nest-pojo</module>
         <module>nest-ai</module>
         <module>nest-minio</module>
+        <module>nest-chat</module>
         <module>nest-server</module>
     </modules>
 
@@ -38,6 +39,7 @@
         <jjwt>0.12.6</jjwt>
         <poi>5.4.0</poi>
         <langchain4j>1.18.1</langchain4j>
+        <netty>4.1.118.Final</netty>
     </properties>
 
     <dependencyManagement>
@@ -61,6 +63,11 @@
             <dependency>
                 <groupId>com.nest</groupId>
                 <artifactId>nest-minio</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nest</groupId>
+                <artifactId>nest-chat</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -170,6 +177,13 @@
                 <version>${langchain4j}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Netty -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-all</artifactId>
+                <version>${netty}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

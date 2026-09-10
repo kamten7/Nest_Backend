@@ -143,7 +143,7 @@ OpenStreetMap + Nominatim 零成本方案，**Redis 缓存 30 天 + 1 次/秒限
 | 存储 | MinIO（Docker 9012） | 房源图片（S3 兼容） |
 | 认证 | JWT 双通道（JJWT 0.12.6） | 租客 / 房东独立密钥、独立拦截器 |
 | AI | LangChain4j 1.18.1 | 真实 Function Calling Agent（DeepSeek-V3 @ SiliconFlow / GLM-4-Flash） |
-| 聊天 | JSR-356（Jakarta WebSocket API） | 运行于内嵌 Tomcat，握手 JWT 鉴权，全双工实时双向 |
+| 聊天 | `nest-chat`（JSR-356 / Netty） | 独立聊天模块，握手 JWT 鉴权，全双工实时双向 |
 | 地图 | OpenStreetMap + Nominatim | 免费、Redis 缓存 + 1 req/s 限速 |
 | 文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
 
@@ -158,11 +158,19 @@ OpenStreetMap + Nominatim 零成本方案，**Redis 缓存 30 天 + 1 次/秒限
 backend/
 ├── nest-common/          # 工具类 / Result / BaseContext / JWT 常量与工具 / 地理工具 / 异常
 ├── nest-pojo/            # Entity / DTO / VO（12 个业务实体：房源、预约、会话、消息、评价、收藏等）
-├── nest-server/          # Controller / Service / Mapper / AI / WebSocket / 配置 / 拦截器
+├── nest-ai/              # 🤖 LangChain4j Agent：模型配置 + 只读 @Tool 工具集
+├── nest-minio/           # 📦 对象存储：MinioClient 配置 + 上传服务
+├── nest-chat/            # 💬 聊天模块：Netty / JSR-356 传输 + PushService 推送
+│   └── src/main/java/com/nest/chat/
+│       ├── netty/        # Netty 服务端 + 通道处理器
+│       ├── jsr356/       # 聊天端点（/ws/chat/{userType}/{userId}）+ 握手鉴权
+│       ├── transport/    # 传输层抽象（jsr356 / netty 可切换）
+│       ├── core/         # MessageDispatcher 入站路由 + MessageListener SPI
+│       └── push/         # PushService 推送 API
+├── nest-server/          # Controller / Service / Mapper / 配置 / 拦截器
 │   └── src/main/java/com/nest/
-│       ├── AI/           # 🤖 LangChain4j Agent：模型配置（AiModelConfig）+ 只读 @Tool 工具集
-│       ├── websocket/    # 💬 聊天端点（/ws/chat/{userType}/{userId}）+ 握手鉴权
 │       ├── interceptor/  # JWT 双通道拦截器（user/admin）
+│       ├── listener/     # MessageListener 实现（入站消息落库）
 │       ├── handler/      # 全局异常处理（统一响应）
 │       └── controller/   # 租客 /user/** · 房东 /admin/**
 └── sql/                  # nest_rent.sql（12 张表）+ test_data.sql（测试数据）
@@ -215,7 +223,7 @@ flowchart LR
 ## 💬 实时聊天
 
 
-租客 ↔ 房东一对一实时聊天，基于 JSR-356（Jakarta WebSocket API）的全双工通道，运行于 Spring Boot 内嵌 Tomcat 容器。握手阶段（`ChatWebSocketConfigurator.modifyHandshake`）完成 JWT 校验并存储可信身份；消息全量落 `message` 表（`is_read` 标记），离线期间推送丢弃但消息留存、上线拉取补齐；会话按用户对双向归一（两人只保留一条）；支持已读回执（`read_receipt`）与输入状态（`typing`）转发，心跳保活。
+租客 ↔ 房东一对一实时聊天，通道与推送收敛在独立模块 `nest-chat`（传输层默认 JSR-356，可切 Netty）：握手阶段（`ChatWebSocketConfigurator.modifyHandshake`）完成 JWT 校验并存储可信身份；入站消息经 `MessageDispatcher` 路由后交给 `nest-server` 的 `MessageListener` 实现落库，出站推送统一走 `PushService`。消息全量落 `message` 表（`is_read` 标记），离线期间推送丢弃但消息留存、上线拉取补齐；会话按用户对双向归一（两人只保留一条）；支持已读回执（`read_receipt`）与输入状态（`typing`）转发，心跳保活。模块说明见 [nest-chat/README.md](nest-chat/README.md)。
 
 
 ## 🗺️ 地图找房
