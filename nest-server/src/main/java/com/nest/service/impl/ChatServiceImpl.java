@@ -15,9 +15,9 @@ import com.nest.mapper.LandlordMapper;
 import com.nest.mapper.MessageMapper;
 import com.nest.mapper.TenantMapper;
 import com.nest.service.ChatService;
+import com.nest.service.NotificationService;
 import com.nest.vo.ConversationVO;
 import com.nest.vo.MessageVO;
-import com.nest.websocket.ChatWebSocketServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +38,7 @@ public class ChatServiceImpl implements ChatService {
     private final MessageMapper messageMapper;
     private final TenantMapper tenantMapper;
     private final LandlordMapper landlordMapper;
+    private final NotificationService notificationService;
 
     /** 发送聊天消息：校验→找/建会话→落库→更新会话→WebSocket 推送。 */
     @Override
@@ -74,7 +75,7 @@ public class ChatServiceImpl implements ChatService {
                 LocalDateTime.now());
 
         MessageVO vo = buildMessageVO(message, fromType, fromId, false);
-        ChatWebSocketServer.sendToUser(toType, toId, buildPushJson(vo, conversation.getId()));
+        notificationService.sendToUser(toType, toId, buildPushJson(vo, conversation.getId()));
 
         log.info("聊天消息: convId={}, from={}:{}, to={}:{}, content='{}'",
                 conversation.getId(), fromType, fromId, toType, toId,
@@ -212,7 +213,7 @@ public class ChatServiceImpl implements ChatService {
                 "readerId", viewerId,
                 "lastReadMsgId", lastReadMsgId
         ));
-        ChatWebSocketServer.sendToUser(peerType, peerId, json);
+        notificationService.sendToUser(peerType, peerId, json);
         log.info("已读回执推送: convId={}, reader={}:{}, peer={}:{}, lastReadMsgId={}",
                 conversation.getId(), viewerType, viewerId, peerType, peerId, lastReadMsgId);
     }
