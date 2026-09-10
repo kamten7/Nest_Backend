@@ -6,11 +6,7 @@ import com.nest.dto.HouseQueryDTO;
 import com.nest.vo.HouseVO;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * 房源服务接口。
- * 包含发布、编辑、上架/下架、删除、查询等操作。
- * 用户端和房东端都有对应的接口。
- */
+/** 房源服务接口。 */
 public interface HouseService {
 
     /** 发布房源，返回房源 ID */

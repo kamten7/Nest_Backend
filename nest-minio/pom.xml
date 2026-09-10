@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.nest</groupId>
+        <artifactId>nest-rent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>nest-minio</artifactId>
+    <packaging>jar</packaging>
+    <name>Nest MinIO</name>
+    <description>MinIO 对象存储模块：配置、文件上传服务</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-common</artifactId>
+        </dependency>
+
+        <!-- Spring Context（@Configuration / @Bean / @Value） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Spring Web（MultipartFile） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- MinIO -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+        </dependency>
+
+        <!-- 工具 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- SLF4J（@Slf4j） -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>

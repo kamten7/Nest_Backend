@@ -18,7 +18,7 @@ import com.nest.mapper.HouseMapper;
 import com.nest.mapper.HouseTagMapper;
 import com.nest.mapper.LandlordMapper;
 import com.nest.service.HouseService;
-import com.nest.service.MinioService;
+import com.nest.minio.service.MinioService;
 import com.nest.utils.GeoUtils;
 import com.nest.vo.HouseMarkerVO;
 import com.nest.vo.HouseVO;
@@ -34,9 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 房源服务实现。
- */
+/** 房源服务实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -50,173 +48,114 @@ public class HouseServiceImpl implements HouseService {
 
     // ==================== 房东端 ====================
 
-    /**
-     * 创建房源（房东端）。
-     *
-     * 流程：插入房源主记录 → 批量插入图片 → 批量插入标签，三步在同一事务内。
-     * 当前登录房东 ID 从 {@link BaseContext} 取，不信任前端传入。
-     *
-     * @param dto 房源创建参数（标题/描述/地址/价格/户型/图片URL列表/标签列表等）
-     * @return 新建房源的自增主键 ID
-     */
+    /** 创建房源（房东端）。 */
     @Override
     @Transactional
     public Long create(HouseCreateDTO dto) {
-        Long landlordId = BaseContext.getCurrentId();   // 从线程上下文取当前登录房东 ID
+        Long landlordId = BaseContext.getCurrentId();
 
-        // 1. 插入房源
-        House house = buildHouse(dto, landlordId);   // DTO → 实体，并绑定房东 ID
-        houseMapper.insert(house);   // insert 后 MyBatis 会把自增主键回填到 house.id
+        House house = buildHouse(dto, landlordId);
+        houseMapper.insert(house);
         log.info("房源创建: id={}, landlordId={}, title='{}'", house.getId(), landlordId, house.getTitle());
 
-        // 2. 批量插入图片（此时已拿到回填的主键，图片子表依赖它做外键）
         saveImages(house.getId(), dto.getImages());
-
-        // 3. 批量插入标签
         saveTags(house.getId(), dto.getTags());
 
-        return house.getId();   // 返回新建房源 ID
+        return house.getId();
     }
 
-    /**
-     * 更新房源（房东端）。
-     *
-     * 图片和标签采用"先删后插"整体替换策略（不是增量），与前端编辑表单的"完整提交"语义一致。
-     *
-     * @param houseId 要更新的房源 ID
-     * @param dto     新的房源内容（与创建共用 HouseCreateDTO）
-     */
+    /** 更新房源（房东端）。图片和标签采用"先删后插"整体替换策略。 */
     @Override
     @Transactional
     public void update(Long houseId, HouseCreateDTO dto) {
-        validateOwnership(houseId);   // 前置校验：房源必须存在且属于当前登录房东
+        validateOwnership(houseId);
 
-        // 1. 更新房源字段（buildHouse 第二个参数传 null，避免更新时误改归属房东）
         House house = buildHouse(dto, null);
-        house.setId(houseId);   // 显式指定要更新的主键
-        houseMapper.update(house);   // 动态 SQL：只更新非空字段
+        house.setId(houseId);
+        houseMapper.update(house);
 
-        // 2. 替换图片：先删后插（仅当传入图片列表非空时，避免误删原有图）
         if (dto.getImages() != null) {
-            houseImageMapper.deleteByHouseId(houseId);   // 删除该房源旧图片
-            saveImages(houseId, dto.getImages());       // 重新批量插入新图片
+            houseImageMapper.deleteByHouseId(houseId);
+            saveImages(houseId, dto.getImages());
         }
 
-        // 3. 替换标签：先删后插
         if (dto.getTags() != null) {
-            houseTagMapper.deleteByHouseId(houseId);   // 删除旧标签
-            saveTags(houseId, dto.getTags());          // 重新批量插入新标签
+            houseTagMapper.deleteByHouseId(houseId);
+            saveTags(houseId, dto.getTags());
         }
 
         log.info("房源更新: id={}", houseId);
     }
 
-    /**
-     * 上架/下架房源（房东端）。
-     *
-     * @param houseId 房源 ID
-     * @param status  目标状态：1=上架，0=下架
-     */
+    /** 上架/下架房源（房东端）。status: 1=上架, 0=下架。 */
     @Override
     public void updateStatus(Long houseId, Integer status) {
-        validateOwnership(houseId);   // 只有房源所有者才能上下架
-        houseMapper.updateStatus(houseId, status);   // 只更新 status 字段
+        validateOwnership(houseId);
+        houseMapper.updateStatus(houseId, status);
         log.info("房源状态变更: id={}, status={}", houseId, status);
     }
 
-    /**
-     * 删除房源（房东端）。
-     *
-     * 先删子表（图片、标签）再删主表，防止数据库孤儿数据。
-     * 三个删除在同一事务内，要么全成功要么全回滚。
-     *
-     * @param houseId 要删除的房源 ID
-     */
+    /** 删除房源（房东端）。先删子表再删主表，同一事务内。 */
     @Override
     @Transactional
     public void delete(Long houseId) {
-        validateOwnership(houseId);   // 只有房源所有者才能删除
-        houseImageMapper.deleteByHouseId(houseId);   // 先删图片子表，避免孤儿数据
-        houseTagMapper.deleteByHouseId(houseId);     // 再删标签子表
-        houseMapper.deleteById(houseId);             // 最后删房源主表
+        validateOwnership(houseId);
+        houseImageMapper.deleteByHouseId(houseId);
+        houseTagMapper.deleteByHouseId(houseId);
+        houseMapper.deleteById(houseId);
         log.info("房源删除: id={}", houseId);
     }
 
-    /**
-     * 我的房源列表（房东端，分页）。
-     *
-     * 用 PageHelper 分页插件，startPage 后紧接着的查询自动拼上 limit。
-     *
-     * @param page     页码（从 1 开始）
-     * @param pageSize 每页条数
-     * @return 当前页房源 VO 列表 + 总条数
-     */
+    /** 我的房源列表（房东端，分页）。 */
     @Override
     public PageResult<HouseVO> myList(Integer page, Integer pageSize) {
-        Long landlordId = BaseContext.getCurrentId();   // 取当前登录房东 ID
-        PageHelper.startPage(page, pageSize);   // 开启分页，作用于下一条 selectByLandlord
-        List<House> houses = houseMapper.selectByLandlord(landlordId);   // 查该房东名下房源
-        PageInfo<House> pageInfo = new PageInfo<>(houses);   // 包装分页元数据（total 等）
+        Long landlordId = BaseContext.getCurrentId();
+        PageHelper.startPage(page, pageSize);
+        List<House> houses = houseMapper.selectByLandlord(landlordId);
+        PageInfo<House> pageInfo = new PageInfo<>(houses);
 
-        // 列表场景 buildVO(h, false)：不加载完整图片列表，只取封面图，省查询
         List<HouseVO> vos = houses.stream()
                 .map(h -> buildVO(h, false))
                 .collect(Collectors.toList());
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
-    /**
-     * 上传房源图片（房东端）。
-     *
-     * @param file 上传的图片文件（MultipartFile）
-     * @return 上传成功后图片的可访问 URL
-     */
+    /** 上传房源图片（房东端）。 */
     @Override
     public String uploadImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(MessageConstant.IMAGE_UPLOAD_EMPTY);   // 空文件拒绝
+            throw new BusinessException(MessageConstant.IMAGE_UPLOAD_EMPTY);
         }
-        return minioService.upload(file, "house");   // 委托 MinIO 上传，目录前缀 house
+        return minioService.upload(file, "house");
     }
 
     // ==================== 用户端 ====================
 
-    /**
-     * 用户端房源列表（公开接口，分页 + 筛选 + 距离）。
-     *
-     * 支持城市/区域/价格/户型/关键词/排序筛选（见 HouseQueryDTO）；
-     * 若用户传了经纬度（userLat/userLng），还会用 Haversine 算距离。
-     *
-     * @param dto 查询条件（分页参数 + 筛选条件 + 可选用户经纬度）
-     * @return 房源 VO 分页结果，VO 含封面、标签、距离文本
-     */
+    /** 用户端房源列表（公开，分页+筛选+距离）。 */
     @Override
     public PageResult<HouseVO> list(HouseQueryDTO dto) {
-        PageHelper.startPage(dto.getPage(), dto.getPageSize());   // 开启分页
-        List<House> houses = houseMapper.selectByCondition(dto);   // 按动态 SQL 条件查询
-        PageInfo<House> pageInfo = new PageInfo<>(houses);   // 分页元数据
+        PageHelper.startPage(dto.getPage(), dto.getPageSize());
+        List<House> houses = houseMapper.selectByCondition(dto);
+        PageInfo<House> pageInfo = new PageInfo<>(houses);
 
         if (houses.isEmpty()) {
-            return PageResult.of(0L, Collections.emptyList());   // 无结果直接返回空页
+            return PageResult.of(0L, Collections.emptyList());
         }
 
-        // 批量查询标签：一次 IN 查询拿到本页所有房源的全部标签，避免逐条查（N+1 问题）
-        List<Long> houseIds = houses.stream().map(House::getId).toList();   // 收集本页房源 ID
+        List<Long> houseIds = houses.stream().map(House::getId).toList();
         Map<Long, List<String>> tagMap = houseTagMapper.selectByHouseIds(houseIds).stream()
-                .collect(Collectors.groupingBy(   // 按 houseId 分组，聚合出每个房源的标签名列表
-                        HouseTag::getHouseId,
+                .collect(Collectors.groupingBy(HouseTag::getHouseId,
                         Collectors.mapping(HouseTag::getTagName, Collectors.toList())));
 
-        // 逐个房源转 VO 并补标签、距离
         List<HouseVO> vos = houses.stream().map(h -> {
-            HouseVO vo = buildVO(h, false);   // 基础字段转 VO
-            vo.setTags(tagMap.getOrDefault(h.getId(), Collections.emptyList()));   // 补标签，无标签给空列表
-            // 距离计算：用户和房源都有坐标时才算
-            if (dto.getUserLat() != null && dto.getUserLng() != null && h.getLatitude() != null && h.getLongitude() != null) {
-                double meters = GeoUtils.distance(   // Haversine 算直线距离（米）
+            HouseVO vo = buildVO(h, false);
+            vo.setTags(tagMap.getOrDefault(h.getId(), Collections.emptyList()));
+            if (dto.getUserLat() != null && dto.getUserLng() != null
+                    && h.getLatitude() != null && h.getLongitude() != null) {
+                double meters = GeoUtils.distance(
                         dto.getUserLat(), dto.getUserLng(),
                         h.getLatitude(), h.getLongitude());
-                vo.setDistanceText(GeoUtils.formatDistance(meters));   // 格式化为 "500m" / "1.2km"
+                vo.setDistanceText(GeoUtils.formatDistance(meters));
             }
             return vo;
         }).collect(Collectors.toList());
@@ -224,38 +163,25 @@ public class HouseServiceImpl implements HouseService {
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
-    /**
-     * 房源详情（用户端，公开）。
-     *
-     * 只允许查看已上架的房源；每次访问浏览量 +1。
-     * 返回完整信息：基础字段 + 图片列表 + 标签列表 + 房东名称/头像。
-     *
-     * @param houseId 房源 ID
-     * @return 完整房源 VO（含图片、标签、房东信息）
-     */
+    /** 房源详情（用户端，公开）。只允许查看已上架房源，每次访问浏览量+1。 */
     @Override
     public HouseVO detail(Long houseId) {
-        House house = houseMapper.selectById(houseId);   // 按主键查房源
-        if (house == null || house.getStatus() == 0) {   // 不存在或已下架（status=0）都不可查看
+        House house = houseMapper.selectById(houseId);
+        if (house == null || house.getStatus() == 0) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
         }
 
-        // 浏览量 +1（用独立 SQL 自增，避免整行更新、减少锁开销）
         houseMapper.incrementViewCount(houseId);
+        HouseVO vo = buildVO(house, true);
 
-        HouseVO vo = buildVO(house, true);   // 详情场景 buildVO(h, true)
-
-        // 加载图片列表：查该房源全部图片，只取 URL 给前端
         List<HouseImage> images = houseImageMapper.selectByHouseId(houseId);
         vo.setImages(images.stream().map(HouseImage::getUrl).collect(Collectors.toList()));
 
-        // 加载标签：查该房源全部标签名
         List<HouseTag> tags = houseTagMapper.selectByHouseId(houseId);
         vo.setTags(tags.stream().map(HouseTag::getTagName).collect(Collectors.toList()));
 
-        // 加载房东信息：查房源所属房东，填充名称/头像
         Landlord landlord = landlordMapper.selectById(house.getLandlordId());
-        if (landlord != null) {   // 房东可能被删，判空兜底
+        if (landlord != null) {
             vo.setLandlordName(landlord.getName());
             vo.setLandlordAvatar(landlord.getAvatar());
         }
@@ -263,40 +189,27 @@ public class HouseServiceImpl implements HouseService {
         return vo;
     }
 
-    /**
-     * 房东查看自己的房源详情（编辑回填用）。
-     *
-     * 与 {@link #detail} 的区别：不过滤已下架状态（status=0），因为房东要能编辑下架中的房源；
-     * 但必须校验归属——只能看自己名下的房源。
-     *
-     * @param houseId 房源 ID
-     * @return 完整房源 VO（含图片、标签、房东信息）
-     */
+    /** 房东查看自己的房源详情（编辑回填用，不过滤下架状态，但校验归属）。 */
     @Override
     public HouseVO getOwnedById(Long houseId) {
-        // 房东查看自己的房源详情（编辑回填用，不走 detail 的 status 拦截）
-        House house = houseMapper.selectById(houseId);   // 按主键查房源
+        House house = houseMapper.selectById(houseId);
         if (house == null) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
         }
-        // 校验所有权：房源归属 != 当前登录房东 → 无权限
         if (!house.getLandlordId().equals(BaseContext.getCurrentId())) {
             throw new NoPermissionException(MessageConstant.HOUSE_NOT_OWNER);
         }
 
-        HouseVO vo = buildVO(house, true);   // 详情场景转换
+        HouseVO vo = buildVO(house, true);
 
-        // 加载图片列表（编辑表单回填用）
         List<HouseImage> images = houseImageMapper.selectByHouseId(houseId);
         vo.setImages(images.stream().map(HouseImage::getUrl).collect(Collectors.toList()));
 
-        // 加载标签（编辑表单回填用）
         List<HouseTag> tags = houseTagMapper.selectByHouseId(houseId);
         vo.setTags(tags.stream().map(HouseTag::getTagName).collect(Collectors.toList()));
 
-        // 加载房东信息（详情展示用）
         Landlord landlord = landlordMapper.selectById(house.getLandlordId());
-        if (landlord != null) {   // 判空兜底
+        if (landlord != null) {
             vo.setLandlordName(landlord.getName());
             vo.setLandlordAvatar(landlord.getAvatar());
         }
@@ -306,67 +219,40 @@ public class HouseServiceImpl implements HouseService {
 
     // ==================== 地图 ====================
 
-    /**
-     * 地图房源标记查询（用户端/房东端共用）。
-     *
-     * 支持两种入参模式：
-     * <ul>
-     *   <li>中心点+半径：传 {@code lat, lng, radius}，先用 {@code boundingBox} 把圆形范围换算成矩形</li>
-     *   <li>直接给矩形：传 {@code minLat, maxLat, minLng, maxLng}</li>
-     * </ul>
-     * 参数缺失或非法（经纬度越界）抛 {@code MAP_PARAM_INVALID}。
-     *
-     * @param minLat 矩形南边界（或中心点模式下为 null）
-     * @param maxLat 矩形北边界（或中心点模式下为 null）
-     * @param minLng 矩形西边界（或中心点模式下为 null）
-     * @param maxLng 矩形东边界（或中心点模式下为 null）
-     * @param lat    中心点纬度（可选）
-     * @param lng    中心点经度（可选）
-     * @param radius 中心点半径（米，可选）
-     * @return 落在矩形范围内的房源标记点列表
-     */
+    /** 地图房源标记查询（用户端/房东端共用）。支持 center+radius 或 bounds 模式。 */
     @Override
-    public List<com.nest.vo.HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
-                                                      Double minLng, Double maxLng,
-                                                      Double lat, Double lng, Double radius) {
-        // 模式 1：center + radius → 转 bounds
+    public List<HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
+                                         Double minLng, Double maxLng,
+                                         Double lat, Double lng, Double radius) {
         if (lat != null && lng != null && radius != null) {
-            // 圆形范围不好在 SQL 里查，用外接矩形近似（粗筛）
             double[] box = GeoUtils.boundingBox(lat, lng, radius);
-            minLat = box[0];   // 矩形南边界
-            maxLat = box[1];   // 矩形北边界
-            minLng = box[2];   // 矩形西边界
-            maxLng = box[3];   // 矩形东边界
+            minLat = box[0];
+            maxLat = box[1];
+            minLng = box[2];
+            maxLng = box[3];
         }
 
-        // 模式 2：直接 bounds（此时 4 个边界值必须齐全）
         if (minLat == null || maxLat == null || minLng == null || maxLng == null) {
-            throw new com.nest.exception.BusinessException(com.nest.constant.MessageConstant.MAP_PARAM_INVALID);
+            throw new BusinessException(MessageConstant.MAP_PARAM_INVALID);
         }
 
-        // 校验范围：经纬度必须在合法区间，防止异常查询
         if (minLat < -90 || maxLat > 90 || minLng < -180 || maxLng > 180) {
-            throw new com.nest.exception.BusinessException(com.nest.constant.MessageConstant.MAP_PARAM_INVALID);
+            throw new BusinessException(MessageConstant.MAP_PARAM_INVALID);
         }
 
-        return houseMapper.selectByBounds(minLat, maxLat, minLng, maxLng);   // 矩形范围粗筛（SQL BETWEEN）
+        return houseMapper.selectByBounds(minLat, maxLat, minLng, maxLng);
     }
 
-    /**
-     * 房东的地图标记查询：返回当前登录房东名下所有房源的标记点。
-     *
-     * @return 房东名下房源的标记点列表（含标题、价格、坐标、封面）
-     */
+    /** 房东端地图标记查询：返回当前房东名下所有房源标记。 */
     @Override
     public List<HouseMarkerVO> landlordMap() {
-        Long landlordId = BaseContext.getCurrentId();   // 取当前登录房东 ID
-        return houseMapper.selectByLandlordMap(landlordId);   // 查该房东名下所有房源标记
+        Long landlordId = BaseContext.getCurrentId();
+        return houseMapper.selectByLandlordMap(landlordId);
     }
-
 
     // ==================== 内部方法 ====================
 
-    /** 校验房源所有权 */
+    /** 校验房源所有权。 */
     private void validateOwnership(Long houseId) {
         House house = houseMapper.selectById(houseId);
         if (house == null) {
@@ -377,7 +263,7 @@ public class HouseServiceImpl implements HouseService {
         }
     }
 
-    /** DTO → House 实体（landlordId 为 null 时跳过） */
+    /** DTO → House 实体。 */
     private House buildHouse(HouseCreateDTO dto, Long landlordId) {
         House h = new House();
         h.setLandlordId(landlordId);
@@ -405,7 +291,7 @@ public class HouseServiceImpl implements HouseService {
         return h;
     }
 
-    /** House 实体 → HouseVO */
+    /** House 实体 → HouseVO。 */
     private HouseVO buildVO(House h, boolean isDetail) {
         HouseVO vo = new HouseVO();
         vo.setId(h.getId());
@@ -435,7 +321,6 @@ public class HouseServiceImpl implements HouseService {
         vo.setViewCount(h.getViewCount());
         vo.setCreateTime(h.getCreateTime());
 
-        // 封面图
         List<HouseImage> images = houseImageMapper.selectByHouseId(h.getId());
         if (images != null && !images.isEmpty()) {
             vo.setCoverImage(images.get(0).getUrl());
@@ -444,7 +329,7 @@ public class HouseServiceImpl implements HouseService {
         return vo;
     }
 
-    /** 批量保存图片 */
+    /** 批量保存图片。 */
     private void saveImages(Long houseId, List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) return;
         List<HouseImage> images = new ArrayList<>();
@@ -459,7 +344,7 @@ public class HouseServiceImpl implements HouseService {
         houseImageMapper.insertBatch(images);
     }
 
-    /** 批量保存标签 */
+    /** 批量保存标签。 */
     private void saveTags(Long houseId, List<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) return;
         List<HouseTag> tags = tagNames.stream()

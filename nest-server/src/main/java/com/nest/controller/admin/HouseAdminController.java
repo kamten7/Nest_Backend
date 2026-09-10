@@ -21,9 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * 房东端房源管理接口。
- */
+/** 房东端房源管理接口。 */
 @Slf4j
 @RestController
 @RequestMapping("/admin/house")
@@ -34,120 +32,82 @@ public class HouseAdminController {
     private final HouseService houseService;
     private final NominatimService nominatimService;
 
-    /**
-     * 上传房源图片到 MinIO。
-     */
+    /** 上传房源图片到 MinIO。 */
     @PostMapping("/upload")
-    @Operation(summary = "上传房源图片", description = "上传图片到 MinIO，返回可访问 URL。支持 jpg/png/webp。")
-    public Result<String> upload(
-            @RequestParam("file") MultipartFile file
-    ) {
+    @Operation(summary = "上传房源图片")
+    public Result<String> upload(@RequestParam("file") MultipartFile file) {
         log.info("图片上传: name={}, size={}", file.getOriginalFilename(), file.getSize());
-
         String url = houseService.uploadImage(file);
-
         return Result.success("上传成功", url);
     }
 
-    /**
-     * 发布房源。
-     */
+    /** 发布房源。 */
     @PostMapping
-    @Operation(summary = "发布房源", description = "发布新房源，图片需先通过 upload 接口上传拿到 URL")
-    public Result<Long> create(
-            @RequestBody HouseCreateDTO dto
-    ) {
+    @Operation(summary = "发布房源")
+    public Result<Long> create(@RequestBody HouseCreateDTO dto) {
         log.info("发布房源: title='{}', city={}, price={}", dto.getTitle(), dto.getCity(), dto.getPrice());
-
         Long houseId = houseService.create(dto);
-
         return Result.success("发布成功", houseId);
     }
 
-    /**
-     * 编辑房源。
-     */
+    /** 编辑房源。 */
     @PutMapping("/{id}")
-    @Operation(summary = "编辑房源", description = "编辑自己的房源，仅更新传入的非空字段")
-    public Result<Void> update(
-            @PathVariable Long id,
-            @RequestBody HouseCreateDTO dto
-    ) {
+    @Operation(summary = "编辑房源")
+    public Result<Void> update(@PathVariable Long id, @RequestBody HouseCreateDTO dto) {
         log.info("编辑房源: id={}", id);
         houseService.update(id, dto);
         return Result.successMsg("编辑成功");
     }
 
-    /**
-     * 上架/下架。
-     */
+    /** 上架/下架。status=1 上架，0 下架。 */
     @PutMapping("/{id}/status")
-    @Operation(summary = "上架/下架", description = "切换房源状态，status=1 上架，0 下架")
-    public Result<Void> updateStatus(
-            @PathVariable Long id,
-            @Parameter(description = "1=上架, 0=下架") @RequestParam Integer status
-    ) {
+    @Operation(summary = "上架/下架")
+    public Result<Void> updateStatus(@PathVariable Long id,
+                                     @Parameter(description = "1=上架, 0=下架") @RequestParam Integer status) {
         log.info("房源状态变更: id={}, status={}", id, status);
         houseService.updateStatus(id, status);
         return Result.successMsg(status == 1 ? "已上架" : "已下架");
     }
 
-    /**
-     * 删除房源。
-     */
+    /** 删除房源（含关联图片和标签）。 */
     @DeleteMapping("/{id}")
-    @Operation(summary = "删除房源", description = "删除房源及关联的图片和标签")
-    public Result<Void> delete(
-            @PathVariable Long id
-    ) {
+    @Operation(summary = "删除房源")
+    public Result<Void> delete(@PathVariable Long id) {
         log.info("删除房源: id={}", id);
         houseService.delete(id);
         return Result.successMsg("删除成功");
     }
 
-    /**
-     * 我的房源列表。
-     */
+    /** 我的房源列表（分页）。 */
     @GetMapping("/my")
-    @Operation(summary = "我的房源列表", description = "查看当前登录房东发布的所有房源")
-    public Result<PageResult<HouseVO>> myList(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer pageSize
-    ) {
+    @Operation(summary = "我的房源列表")
+    public Result<PageResult<HouseVO>> myList(@RequestParam(defaultValue = "1") Integer page,
+                                               @RequestParam(defaultValue = "10") Integer pageSize) {
         PageResult<HouseVO> result = houseService.myList(page, pageSize);
-
         return Result.success(result);
     }
 
-    /**
-     * 房东查看自己的房源详情（编辑回填用，即使下架）。
-     */
+    /** 房东查看自己的房源详情（编辑回填用，即使下架）。 */
     @GetMapping("/{id}")
-    @Operation(summary = "我的房源详情", description = "查看自己某套房源完整信息（含图片/标签），编辑回填用")
-    public Result<HouseVO> getById(
-            @PathVariable Long id
-    ) {
+    @Operation(summary = "我的房源详情")
+    public Result<HouseVO> getById(@PathVariable Long id) {
         log.info("房东查看房源详情: id={}, landlordId={}", id, BaseContext.getCurrentId());
         HouseVO vo = houseService.getOwnedById(id);
         return Result.success(vo);
     }
 
-    /**
-     * 房东地图标记点（需要认证）。
-     */
+    /** 房东地图标记点查询。 */
     @GetMapping("/map")
-    @Operation(summary = "房东地图标记点", description = "查询当前房东的所有房源标记点，用于管理端地图展示")
+    @Operation(summary = "房东地图标记点")
     public Result<List<HouseMarkerVO>> map() {
         log.info("房东地图标记查询: landlordId={}", BaseContext.getCurrentId());
         List<HouseMarkerVO> markers = houseService.landlordMap();
         return Result.success(markers);
     }
 
-    /**
-     * 地址地理编码（需要认证）。
-     */
+    /** 地址→经纬度（Nominatim 地理编码）。 */
     @PostMapping("/geocode")
-    @Operation(summary = "地址地理编码", description = "调用 Nominatim 将地址文本转换为经纬度坐标，结果缓存 30 天")
+    @Operation(summary = "地址地理编码")
     public Result<GeocodeVO> geocode(@RequestBody GeocodeDTO dto) {
         log.info("地理编码请求: address='{}'", dto.getAddress());
         GeocodeVO result = nominatimService.geocode(dto.getAddress());
@@ -157,12 +117,9 @@ public class HouseAdminController {
         return Result.success("解析成功", result);
     }
 
-    /**
-     * 反向地理编码（需要认证）：坐标 → 地址。
-     * 用于添加房源页「地图选点后自动填地址」。
-     */
+    /** 经纬度→地址（反向地理编码，地图选点发布房源用）。 */
     @PostMapping("/geocode/reverse")
-    @Operation(summary = "反向地理编码", description = "将经纬度坐标转换为可读地址（地图选点发布房源用）")
+    @Operation(summary = "反向地理编码")
     public Result<GeocodeVO> reverseGeocode(@RequestBody ReverseGeocodeDTO dto) {
         log.info("反向地理编码请求: lat={}, lng={}", dto.getLat(), dto.getLng());
         if (dto.getLat() == null || dto.getLng() == null) {

@@ -1,16 +1,6 @@
 package com.nest.constant;
 
-/**
- * 预约状态机常量。
- *
- * <pre>
- * 待确认(1) ──房东确认──▶ 已确认(2) ──看房完成──▶ 已看房(3) ──签约──▶ 已成交(5)
- *     │                     │
- *     │ 任一方取消            │ 任一方取消
- *     ▼                     ▼
- * 已取消(4)            已取消(4)
- * </pre>
- */
+/** 预约状态机常量。 */
 public final class AppointmentStatus {
 
     private AppointmentStatus() {}
@@ -26,7 +16,7 @@ public final class AppointmentStatus {
     /** 已成交 */
     public static final int DEAL = 5;
 
-    /** 状态文本 */
+    /** 状态文本。 */
     public static String text(int status) {
         return switch (status) {
             case PENDING -> "待确认";

@@ -14,6 +14,12 @@
     <description>公共模块：工具类、常量、异常、统一响应</description>
 
     <dependencies>
+        <!-- HouseService 接口需要 nest-pojo 中的 DTO/VO -->
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-pojo</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -31,10 +37,21 @@
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
         </dependency>
+        <!-- BCrypt 密码加密（版本由 Spring Boot BOM 管理） -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
         <!-- Servlet API (BaseContext 等 web 层依赖) -->
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Spring Web（HouseService 等接口需要 MultipartFile） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
             <scope>provided</scope>
         </dependency>
     </dependencies>

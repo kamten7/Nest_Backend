@@ -18,12 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 
-/**
- * Nominatim 地理编码实现。
- *
- * <p>调用 OpenStreetMap Nominatim API，结果缓存 Redis（30 天 TTL），
- * 内置 1 req/s 速率限制以遵守 Nominatim 使用条款。</p>
- */
+/** Nominatim 地理编码实现。结果缓存 Redis 30 天，内置 1 req/s 速率限制。 */
 @Slf4j
 @Service
 public class NominatimServiceImpl implements NominatimService {
@@ -34,14 +29,12 @@ public class NominatimServiceImpl implements NominatimService {
             "https://nominatim.openstreetmap.org/reverse?lat=%s&lon=%s&format=json";
     private static final String CACHE_KEY_PREFIX = "geo:address:";
     private static final String REVERSE_CACHE_PREFIX = "geo:reverse:";
-    /** 缓存 30 天 */
     private static final Duration CACHE_TTL = Duration.ofDays(30);
 
     private final RestTemplate restTemplate;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
-    /** 速率限制锁 —— 保证两次 Nominatim 请求间隔至少 1 秒 */
     private final Object rateLimitLock = new Object();
     private long lastRequestTime = 0;
 
@@ -53,15 +46,7 @@ public class NominatimServiceImpl implements NominatimService {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 正向地理编码：地址文本 → 经纬度。
-     *
-     * 先查 Redis 缓存（30 天 TTL），未命中才调 Nominatim，结果写回缓存。
-     * 好处：Nominatim 限 1 req/s，缓存命中能避免绝大多数外部请求。
-     *
-     * @param address 地址文本，如 "湛江市霞山区"
-     * @return 解析结果（经纬度 + 可读地址）；空地址或解析失败返回 null
-     */
+    /** 正向地理编码：地址→经纬度。先查缓存，未命中调 Nominatim。 */
     @Override
     public GeocodeVO geocode(String address) {
         if (address == null || address.isBlank()) {
@@ -70,19 +55,15 @@ public class NominatimServiceImpl implements NominatimService {
 
         String cacheKey = CACHE_KEY_PREFIX + md5(address);
 
-        // 1. 查 Redis 缓存
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
             log.debug("地理编码缓存命中: address='{}'", address);
-            // Redis 存的是 LinkedHashMap，需要转换
             if (cached instanceof GeocodeVO vo) {
                 return vo;
             }
-            // Jackson 反序列化后可能是 LinkedHashMap
             return objectMapper.convertValue(cached, GeocodeVO.class);
         }
 
-        // 2. 调 Nominatim
         try {
             rateLimit();
             String url = String.format(FORWARD_URL, URLEncoder.encode(address, StandardCharsets.UTF_8));
@@ -98,7 +79,6 @@ public class NominatimServiceImpl implements NominatimService {
                         .displayName(first.get("display_name").asText())
                         .build();
 
-                // 3. 写入 Redis 缓存
                 redisTemplate.opsForValue().set(cacheKey, vo, CACHE_TTL);
                 return vo;
             }
@@ -110,62 +90,45 @@ public class NominatimServiceImpl implements NominatimService {
         }
     }
 
-    /**
-     * 反向地理编码：经纬度 → 可读地址。
-     *
-     * 用于"地图选点发布房源"——房东在地图上点一下，自动填出地址。
-     * 逻辑与正向一致：先查缓存 → 未命中调 Nominatim → 写缓存。
-     *
-     * @param lat 纬度
-     * @param lng 经度
-     * @return 解析结果；解析失败返回 null
-     */
+    /** 反向地理编码：经纬度→地址。先查缓存，未命中调 Nominatim。 */
     @Override
     public GeocodeVO reverseGeocode(double lat, double lng) {
-        String cacheKey = REVERSE_CACHE_PREFIX + String.format("%.6f,%.6f", lat, lng);   // 经纬度精度取 6 位，兼顾准确与 key 长度
+        String cacheKey = REVERSE_CACHE_PREFIX + String.format("%.6f,%.6f", lat, lng);
 
-        // 1. 查缓存
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
             log.debug("反向地理编码缓存命中: lat={}, lng={}", lat, lng);
             if (cached instanceof GeocodeVO vo) {
                 return vo;
             }
-            return objectMapper.convertValue(cached, GeocodeVO.class);   // Jackson 反序列化后是 LinkedHashMap，需转换
+            return objectMapper.convertValue(cached, GeocodeVO.class);
         }
 
-        // 2. 调 Nominatim
         try {
-            rateLimit();   // 遵守 Nominatim 1 req/s 限制
+            rateLimit();
             String url = String.format(REVERSE_URL, lat, lng);
             log.info("Nominatim 反向地理编码: lat={}, lng={}", lat, lng);
             String json = restTemplate.getForObject(url, String.class);
 
             JsonNode root = objectMapper.readTree(json);
-            if (root.has("lat") && root.has("lon")) {   // 反向接口返回对象（非数组），含坐标即成功
+            if (root.has("lat") && root.has("lon")) {
                 GeocodeVO vo = GeocodeVO.builder()
                         .latitude(Double.parseDouble(root.get("lat").asText()))
                         .longitude(Double.parseDouble(root.get("lon").asText()))
                         .displayName(root.has("display_name") ? root.get("display_name").asText() : "")
                         .build();
 
-                redisTemplate.opsForValue().set(cacheKey, vo, CACHE_TTL);   // 写缓存 30 天
+                redisTemplate.opsForValue().set(cacheKey, vo, CACHE_TTL);
                 return vo;
             }
-            return null;   // 无结果
+            return null;
         } catch (Exception e) {
             log.error("反向地理编码失败: lat={}, lng={}", lat, lng, e);
             throw new RuntimeException(MessageConstant.GEOCODE_FAILED, e);
         }
     }
 
-    /**
-     * 限速：保证两次 Nominatim 请求间隔至少 1 秒。
-     *
-     * 为什么用 synchronized？服务是单例，多请求并发进来若不锁，可能同时通过检查而突破 1 req/s。
-     * 加锁让所有调用串行排队，间隔不足 1 秒则睡眠补齐。
-     * 实际影响小：95% 请求命中缓存，走不到这里。
-     */
+    /** 速率限制：保证两次 Nominatim 请求间隔至少 1 秒。 */
     private void rateLimit() {
         synchronized (rateLimitLock) {
             long now = System.currentTimeMillis();
@@ -181,7 +144,7 @@ public class NominatimServiceImpl implements NominatimService {
         }
     }
 
-    /** MD5 哈希（用于 Redis key） */
+    /** MD5 哈希（用于 Redis key）。 */
     private static String md5(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

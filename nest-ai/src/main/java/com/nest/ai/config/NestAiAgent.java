@@ -1,6 +1,6 @@
-package com.nest.AI.config;
+package com.nest.ai.config;
 
-import com.nest.AI.tools.HouseSearchTools;
+import com.nest.ai.tools.HouseSearchTools;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
@@ -12,30 +12,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Nest AI 找房助手 —— 真 Function Calling Agent。
- *
- * <p>基于 LangChain4j {@code AiServices} 构建，租客端模型（GLM-4-Flash）：
- * <pre>
- * 租客发消息 → TenantAiAssistant.chat()
- *   → AI 自动决策 → 调用 @Tool（HouseSearchTools）
- *   → 拿到真实房源数据 → LLM 润色 → TokenStream 流式返回
- * </pre>
- *
- * <p>关键设计（吸取外卖教训）：</p>
- * <ul>
- *   <li>写操作（预约/收藏）System Prompt 强制「先确认再执行」</li>
- *   <li>工具只读，无共享实例字段，天然无并发串号风险</li>
- *   <li>进程内 {@link MessageWindowChatMemory}，最近 20 条对话上下文</li>
- * </ul>
- */
+/** Nest AI 找房助手 —— 基于 LangChain4j AiServices 的 Function Calling Agent。 */
 @Configuration
 public class NestAiAgent {
 
-    /**
-     * 租客端 AI 找房助手接口。
-     * SystemMessage 定义角色和安全约束，UserMessage 注入用户问题。
-     */
+    /** 租客端 AI 找房助手接口。 */
     public interface TenantAiAssistant {
 
         @SystemMessage("""
@@ -57,27 +38,17 @@ public class NestAiAgent {
             """)
         @UserMessage("{{userMessage}}")
         TokenStream chat(@V("userMessage") String userMessage);
-        // 处理用户消息，返回流式 TokenStream（SSE 逐字输出）
     }
 
-    /**
-     * 创建租客端 AI 助手 Bean（单例，整个应用共享一个）。
-     *
-     * 用 LangChain4j 的 {@code AiServices} 构建"真 Function Calling"代理：
-     * AI 自动决策要调哪个工具、传什么参数，工具结果喂回 LLM 后组织成自然语言回答。
-     *
-     * @param streamingChatModel 租客端流式模型（GLM-4-Flash，支持 TokenStream 流式输出）
-     * @param houseSearchTools   房源查询工具集（@Tool 注解，AI 可调用的真实数据源）
-     * @return 构建好的 AI 助手单例
-     */
+    /** 创建租客端 AI 助手 Bean。 */
     @Bean
     public TenantAiAssistant tenantAiAssistant(
             @Qualifier("userStreamingChatModel") OpenAiStreamingChatModel streamingChatModel,
             HouseSearchTools houseSearchTools) {
-        return AiServices.builder(TenantAiAssistant.class)   // 指定代理接口
-                .streamingChatModel(streamingChatModel)      // 挂流式模型（SSE 逐字输出）
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))   // 进程内记忆：保留最近 20 条对话，支持多轮上下文
-                .tools(houseSearchTools)                     // 注册工具集：AI 可调这些只读工具拿真实房源数据
-                .build();                                    // 构建代理实例
+        return AiServices.builder(TenantAiAssistant.class)
+                .streamingChatModel(streamingChatModel)
+                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
+                .tools(houseSearchTools)
+                .build();
     }
 }

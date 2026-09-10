@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.nest</groupId>
+        <artifactId>nest-rent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>nest-ai</artifactId>
+    <packaging>jar</packaging>
+    <name>Nest AI</name>
+    <description>AI 模块：LangChain4j 模型配置、Agent 定义、工具集</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-pojo</artifactId>
+        </dependency>
+
+        <!-- Spring Context（@Configuration / @Bean / @Value / @Qualifier） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- LangChain4j -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+        </dependency>
+
+        <!-- Servlet API（SSE 流式输出需要 AsyncContext） -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- 工具 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

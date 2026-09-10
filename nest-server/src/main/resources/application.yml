@@ -77,3 +77,14 @@ nest:
       api-key: ${NEST_AI_USER_API_KEY:}
       model-name: ${NEST_AI_USER_MODEL:}
       temperature: 0.7
+  websocket:
+    implementation: jsr356            # jsr356 | netty（Netty 迁移后切换）
+    netty:
+      port: 8081
+  contract:
+    template-path: classpath:contract-templates/
+  inspection:
+    reminder-cron: 0 0 9 * * ?
+  rent:
+    reminder-cron: 0 0 10 * * ?
+    refund-cron: 0 0 11 * * ?

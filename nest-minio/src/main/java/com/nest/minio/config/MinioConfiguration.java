@@ -1,13 +1,11 @@
-package com.nest.config;
+package com.nest.minio.config;
 
 import io.minio.MinioClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * MinIO 对象存储配置。
- */
+/** MinIO 对象存储配置。 */
 @Configuration
 public class MinioConfiguration {
 

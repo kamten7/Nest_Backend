@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * 租客端房源浏览接口（公开，无需认证）。
- */
+/** 租客端房源浏览接口（公开，无需认证）。 */
 @Slf4j
 @RestController
 @RequestMapping("/user/house")
@@ -26,35 +24,27 @@ public class HouseUserController {
 
     private final HouseService houseService;
 
-    /**
-     * 房源列表（公开，分页+筛选）。
-     */
+    /** 房源列表（公开，分页+筛选）。 */
     @GetMapping("/list")
-    @Operation(summary = "房源列表", description = "分页浏览上架房源，支持按城市/区域/价格/户型/关键词筛选和排序")
+    @Operation(summary = "房源列表")
     public Result<PageResult<HouseVO>> list(HouseQueryDTO dto) {
-        log.info("房源列表查询: city={}, district={}, minPrice={}, maxPrice={}, page={}",
-                dto.getCity(), dto.getDistrict(), dto.getMinPrice(), dto.getMaxPrice(), dto.getPage());
+        log.info("房源列表查询: city={}, district={}, page={}", dto.getCity(), dto.getDistrict(), dto.getPage());
         PageResult<HouseVO> result = houseService.list(dto);
         return Result.success(result);
     }
 
-    /**
-     * 房源详情（公开）。
-     */
+    /** 房源详情（公开）。 */
     @GetMapping("/detail/{id}")
-    @Operation(summary = "房源详情", description = "查看房源完整信息，含图片、标签、房东信息")
+    @Operation(summary = "房源详情")
     public Result<HouseVO> detail(@PathVariable Long id) {
         log.info("房源详情查询: id={}", id);
         HouseVO vo = houseService.detail(id);
         return Result.success(vo);
     }
 
-    /**
-     * 地图标记点查询（公开）。
-     * 支持两种模式：bounds（minLat/maxLat/minLng/maxLng）或 center+radius（lat/lng/radius）。
-     */
+    /** 地图标记点查询（公开）。支持 bounds 或 center+radius 模式。 */
     @GetMapping("/map")
-    @Operation(summary = "地图标记点查询", description = "按经纬度范围查询已上架房源标记点。支持 bounds 模式或 center+radius 模式")
+    @Operation(summary = "地图标记点查询")
     public Result<List<HouseMarkerVO>> map(
             @RequestParam(required = false) Double minLat,
             @RequestParam(required = false) Double maxLat,

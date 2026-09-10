@@ -6,11 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
-/**
- * 统一响应结果，所有 Controller 返回此类型。
- *
- * @param <T> 数据类型
- */
+/** 统一响应结果，所有 Controller 返回此类型。 */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -22,8 +18,6 @@ public class Result<T> implements Serializable {
     private String msg;
     /** 响应数据 */
     private T data;
-
-    // ==================== 工厂方法 ====================
 
     public static <T> Result<T> success() {
         return new Result<>(1, "操作成功", null);
@@ -37,7 +31,7 @@ public class Result<T> implements Serializable {
         return new Result<>(1, msg, data);
     }
 
-    /** 无数据成功响应，仅带自定义消息，返回 Result&lt;Void&gt; */
+    /** 无数据成功响应，仅带自定义消息。 */
     public static Result<Void> successMsg(String msg) {
         return new Result<>(1, msg, null);
     }

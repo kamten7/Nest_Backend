@@ -1,4 +1,4 @@
-package com.nest.service;
+package com.nest.minio.service;
 
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -10,9 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
-/**
- * MinIO 文件上传服务。
- */
+/** MinIO 文件上传服务。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,15 +24,8 @@ public class MinioService {
     @Value("${nest.minio.bucket}")
     private String bucket;
 
-    /**
-     * 上传文件到 MinIO，返回可访问的完整 URL。
-     *
-     * @param file   前端上传的文件
-     * @param folder 存储目录，如 "house"
-     * @return 完整 URL，如 http://localhost:9012/nest-rent/house/uuid.jpg
-     */
+    /** 上传文件到 MinIO，返回可访问的完整 URL。 */
     public String upload(MultipartFile file, String folder) {
-        // 生成唯一文件名
         String ext = getExtension(file.getOriginalFilename());
         String objectName = folder + "/" + UUID.randomUUID().toString().substring(0, 8) + ext;
 
@@ -55,7 +46,6 @@ public class MinioService {
         return url;
     }
 
-    /** 提取文件扩展名，如 ".jpg" */
     private String getExtension(String filename) {
         if (filename == null || !filename.contains(".")) return "";
         return filename.substring(filename.lastIndexOf("."));

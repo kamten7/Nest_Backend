@@ -19,6 +19,8 @@
     <modules>
         <module>nest-common</module>
         <module>nest-pojo</module>
+        <module>nest-ai</module>
+        <module>nest-minio</module>
         <module>nest-server</module>
     </modules>
 
@@ -49,6 +51,16 @@
             <dependency>
                 <groupId>com.nest</groupId>
                 <artifactId>nest-pojo</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nest</groupId>
+                <artifactId>nest-ai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nest</groupId>
+                <artifactId>nest-minio</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

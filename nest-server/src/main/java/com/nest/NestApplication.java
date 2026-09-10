@@ -6,12 +6,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-/**
- * Nest 租房平台启动类。
- *
- * <p>排除 LangChain4j Open AI 自动配置（我们手动配置 Bean）。
- * 启用缓存（Redis）、事务、定时任务。</p>
- */
+/** Nest 租房平台启动类。 */
 @SpringBootApplication
 @EnableCaching
 @EnableTransactionManagement

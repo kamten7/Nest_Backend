@@ -10,77 +10,50 @@ import java.security.MessageDigest;
 import java.util.Date;
 import java.util.Map;
 
-/**
- * JWT 工具类：生成、解析、校验 Token。
- *
- * <p>内部使用 SHA-256 对传入密钥字符串做哈希，确保密钥材料 ≥ 256 位，
- * 满足 JJWT 0.12.x 的 HMAC-SHA 最低安全要求。</p>
- *
- * <p>典型调用链：登录成功 → {@code createToken} 签发令牌 → 前端存起来
- * → 每次请求带上 → 拦截器用 {@code parseToken} 解析出 userId。</p>
- */
+/** JWT 工具类：生成、解析、校验 Token。SHA-256 哈希确保密钥 ≥ 256 位。 */
 public final class JwtUtil {
 
-    // 工具类不允许实例化（Java 规范：纯静态方法的类私有构造器）
     private JwtUtil() {}
 
-    /**
-     * 把任意长度的密钥字符串转换为 256 位的 SecretKey。
-     */
+    /** 密钥字符串 → 256 位 SecretKey。 */
     private static SecretKey toSecretKey(String secret) {
         try {
-            // 获取 SHA-256 摘要算法实例（JDK 内置）
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            // 把密钥字符串转成 UTF-8 字节，再算出 32 字节的哈希
             byte[] keyBytes = md.digest(secret.getBytes(StandardCharsets.UTF_8));
-            // JJWT 要求密钥 ≥ 256 位（32 字节），哈希后固定 32 字节满足要求
             return Keys.hmacShaKeyFor(keyBytes);
         } catch (Exception e) {
-            // 密钥初始化失败属于环境问题，直接抛出（不吞异常）
             throw new RuntimeException("JWT 密钥初始化失败", e);
         }
     }
 
-    /**
-     * 生成 JWT Token
-     */
+    /** 生成 JWT Token。 */
     public static String createToken(String secret, long ttlMillis, Map<String, Object> claims) {
-        // 先把密钥字符串转成密钥对象（哈希成 256 位）
         SecretKey key = toSecretKey(secret);
-        // 记录当前时间（毫秒），作为签发时间
         long now = System.currentTimeMillis();
-        // 链式构建 JWT：塞入声明 → 签发时间 → 过期时间 → 签名 → 输出字符串
         return Jwts.builder()
-                .claims(claims)                                   // 自定义声明（userId、userType）
-                .issuedAt(new Date(now))                          // 签发时间
-                .expiration(new Date(now + ttlMillis))            // 过期时间 = 现在 + 有效期
-                .signWith(key)                                    // 用密钥签名（防伪造）
-                .compact();                                       // 输出紧凑的 JWT 字符串
+                .claims(claims)
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + ttlMillis))
+                .signWith(key)
+                .compact();
     }
 
-    /**
-     * 解析 Token，返回 Claims
-     */
+    /** 解析 Token，返回 Claims。签名错误或过期会抛异常。 */
     public static Claims parseToken(String secret, String token) {
-        // 用同一个密钥对象才能正确验签
         SecretKey key = toSecretKey(secret);
-        // 解析并验证签名，拿到 payload（过期/伪造都会抛异常）
         return Jwts.parser()
-                .verifyWith(key)       // 用密钥校验签名
+                .verifyWith(key)
                 .build()
-                .parseSignedClaims(token)  // 解析签名后的 claims
-                .getPayload();         // 取出载荷部分
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
-    /**
-     * 校验 Token 是否有效。
-     */
+    /** 校验 Token 是否有效。 */
     public static boolean validate(String secret, String token) {
         try {
-            parseToken(secret, token);   // 能解析成功说明签名对、没过期
+            parseToken(secret, token);
             return true;
         } catch (Exception e) {
-            // 解析失败（过期/伪造/格式错）返回 false，不抛异常（调用方可决定怎么处理）
             return false;
         }
     }

@@ -1,14 +1,6 @@
 package com.nest.constant;
 
-/**
- * JWT 双通道认证常量。
- *
- * <p>架构与外卖系统对齐：
- * <ul>
- *   <li>房东端（管理端）：Header {@code token}，密钥 {@code NESTRENTLANDLORDJWT}</li>
- *   <li>租客端（用户端）：Header {@code authentication}，密钥 {@code NESTRENTUSERJWT}</li>
- * </ul>
- */
+/** JWT 双通道认证常量。房东端 Header token，租客端 Header authentication。 */
 public final class JwtConstant {
 
     private JwtConstant() {}

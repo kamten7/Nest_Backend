@@ -36,4 +36,18 @@ public final class MessageConstant {
     public static final String CONVERSATION_NOT_FOUND = "会话不存在";
     public static final String MESSAGE_SEND_FAILED = "消息发送失败";
     public static final String MESSAGE_CONTENT_EMPTY = "消息内容不能为空";
+
+    // 合同相关
+    public static final String CONTRACT_NOT_FOUND = "合同不存在";
+    public static final String CONTRACT_STATUS_INVALID = "当前合同状态不允许此操作";
+    public static final String INSPECTION_NOT_FOUND = "检测记录不存在";
+    public static final String INSPECTION_ALREADY_SUBMITTED = "该周期检测已提交";
+    public static final String WALLET_NOT_FOUND = "钱包不存在";
+    public static final String WALLET_BALANCE_INSUFFICIENT = "钱包余额不足";
+    public static final String RENT_ORDER_NOT_FOUND = "租房订单不存在";
+    public static final String RENT_ORDER_STATUS_INVALID = "当前订单状态不允许此操作";
+    public static final String TERMINATION_ALREADY_APPLIED = "您已提交退租申请";
+    public static final String PHONE_ALREADY_REGISTERED = "该手机号已注册";
+    public static final String PHONE_INVALID = "手机号格式不正确";
+    public static final String PROFILE_UPDATE_FAILED = "个人信息更新失败";
 }

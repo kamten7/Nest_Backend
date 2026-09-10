@@ -23,9 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 收藏服务实现。
- */
+/** 收藏服务实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,11 +33,11 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final HouseMapper houseMapper;
     private final HouseImageMapper houseImageMapper;
 
+    /** 添加收藏。 */
     @Override
     public void add(Long houseId) {
         Long tenantId = BaseContext.getCurrentId();
 
-        // 校验房源存在且上架
         House house = houseMapper.selectById(houseId);
         if (house == null || house.getStatus() == 0) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
@@ -52,13 +50,13 @@ public class FavoriteServiceImpl implements FavoriteService {
         try {
             favoriteMapper.insert(favorite);
         } catch (DuplicateKeyException e) {
-            // uk_tenant_house 唯一约束兜底：已收藏过
             log.warn("重复收藏被拦截: tenantId={}, houseId={}", tenantId, houseId);
             throw new BusinessException(MessageConstant.FAVORITE_DUPLICATE);
         }
         log.info("添加收藏: tenantId={}, houseId={}", tenantId, houseId);
     }
 
+    /** 取消收藏。 */
     @Override
     public void remove(Long houseId) {
         Long tenantId = BaseContext.getCurrentId();
@@ -69,6 +67,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         log.info("取消收藏: tenantId={}, houseId={}", tenantId, houseId);
     }
 
+    /** 我的收藏列表（分页）。 */
     @Override
     public PageResult<FavoriteVO> myList(Integer page, Integer pageSize) {
         Long tenantId = BaseContext.getCurrentId();
@@ -83,7 +82,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         List<FavoriteVO> vos = new ArrayList<>();
         for (Favorite f : favorites) {
             House house = houseMapper.selectById(f.getHouseId());
-            if (house == null) continue; // 房源已删除则跳过
+            if (house == null) continue;
 
             FavoriteVO vo = new FavoriteVO();
             vo.setFavoriteId(f.getId());
@@ -95,7 +94,6 @@ public class FavoriteServiceImpl implements FavoriteService {
             vo.setAddress(house.getAddress());
             vo.setCreateTime(f.getCreateTime());
 
-            // 封面图：取第一张
             List<HouseImage> images = houseImageMapper.selectByHouseId(house.getId());
             if (images != null && !images.isEmpty()) {
                 vo.setCoverImage(images.get(0).getUrl());
@@ -105,6 +103,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
+    /** 判断是否已收藏。 */
     @Override
     public boolean hasFavorited(Long houseId) {
         Long tenantId = BaseContext.getCurrentId();
