@@ -3,6 +3,7 @@ package com.nest.controller.user;
 import com.nest.common.BaseContext;
 import com.nest.common.Result;
 import com.nest.dto.TenantLoginDTO;
+import com.nest.dto.TenantProfileDTO;
 import com.nest.dto.TenantRegisterDTO;
 import com.nest.service.TenantService;
 import com.nest.vo.TenantLoginVO;
@@ -55,5 +56,16 @@ public class TenantController {
         Long id = BaseContext.getCurrentId();
         String type = BaseContext.getCurrentType();
         return Result.success("当前登录: id=" + id + ", type=" + type);
+    }
+
+    /**
+     * 完善个人信息（微信登录后填写/更新手机号等）。
+     */
+    @PutMapping("/profile")
+    @Operation(summary = "完善个人信息", description = "微信登录后填写/更新手机号等个人信息")
+    public Result<Void> updateProfile(@RequestBody TenantProfileDTO dto) {
+        log.info("租客完善个人信息请求: phone={}", dto.getPhone());
+        tenantService.updateProfile(dto);
+        return Result.successMsg("个人信息更新成功");
     }
 }

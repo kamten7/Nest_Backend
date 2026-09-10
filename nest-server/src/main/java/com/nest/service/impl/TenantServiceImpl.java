@@ -1,7 +1,10 @@
 package com.nest.service.impl;
 
+import com.nest.common.BaseContext;
 import com.nest.constant.JwtConstant;
+import com.nest.constant.MessageConstant;
 import com.nest.dto.TenantLoginDTO;
+import com.nest.dto.TenantProfileDTO;
 import com.nest.dto.TenantRegisterDTO;
 import com.nest.entity.Tenant;
 import com.nest.exception.BusinessException;
@@ -18,12 +21,6 @@ import java.util.UUID;
 
 /**
  * 租客服务实现。
- *
- * <p>登录支持两种方式：
- * <ul>
- *   <li>微信 code 登录：通过 code 换取 openid（需微信 API，当前先 mock），再查数据库</li>
- *   <li>手机号登录：直接用手机号查数据库，不存在则自动注册</li>
- * </ul>
  */
 @Slf4j
 @Service
@@ -108,6 +105,48 @@ public class TenantServiceImpl implements TenantService {
                 .avatar(tenant.getAvatar())
                 .token(token)
                 .build();
+    }
+
+    /**
+     * 更新租客信息
+     */
+    @Override
+    public void updateProfile(TenantProfileDTO dto) {
+        // 获取当前登录租客 ID
+        Long currentId = BaseContext.getCurrentId();
+        if (currentId == null) {
+            throw new BusinessException(MessageConstant.NOT_LOGIN);
+        }
+
+        // 校验租客是否存在
+        Tenant tenant = tenantMapper.selectById(currentId);
+        if (tenant == null) {
+            throw new BusinessException(MessageConstant.ACCOUNT_NOT_FOUND);
+        }
+
+        // 手机号不能为空
+        String phone = dto.getPhone();
+        if (phone == null || phone.isEmpty()) {
+            throw new BusinessException(MessageConstant.PHONE_INVALID);
+        }
+
+        // 手机号唯一性校验（排除本人）
+        Tenant exist = tenantMapper.selectByPhone(phone);
+        if (exist != null && !exist.getId().equals(currentId)) {
+            throw new BusinessException(MessageConstant.PHONE_ALREADY_REGISTERED);
+        }
+
+        // 构建更新实体（仅更新非空字段，空字段由 Mapper XML 跳过）
+        Tenant updated = Tenant.builder()
+                .id(currentId)
+                .phone(dto.getPhone())
+                .nickname(dto.getNickname())
+                .avatar(dto.getAvatar())
+                .build();
+        int rows = tenantMapper.update(updated);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.PROFILE_UPDATE_FAILED);
+        }
     }
 
     /**
