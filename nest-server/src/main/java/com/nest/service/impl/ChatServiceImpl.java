@@ -1,8 +1,8 @@
 package com.nest.service.impl;
 
-import com.alibaba.fastjson2.JSON;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.nest.chat.push.PushService;
 import com.nest.common.PageResult;
 import com.nest.constant.MessageConstant;
 import com.nest.entity.Conversation;
@@ -17,7 +17,6 @@ import com.nest.mapper.TenantMapper;
 import com.nest.service.ChatService;
 import com.nest.vo.ConversationVO;
 import com.nest.vo.MessageVO;
-import com.nest.websocket.ChatWebSocketServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +37,7 @@ public class ChatServiceImpl implements ChatService {
     private final MessageMapper messageMapper;
     private final TenantMapper tenantMapper;
     private final LandlordMapper landlordMapper;
+    private final PushService pushService;
 
     /** 发送聊天消息：校验→找/建会话→落库→更新会话→WebSocket 推送。 */
     @Override
@@ -74,7 +74,8 @@ public class ChatServiceImpl implements ChatService {
                 LocalDateTime.now());
 
         MessageVO vo = buildMessageVO(message, fromType, fromId, false);
-        ChatWebSocketServer.sendToUser(toType, toId, buildPushJson(vo, conversation.getId()));
+        pushService.pushChat(toType, toId, conversation.getId(), vo.getId(),
+                fromType, fromId, vo.getSenderName(), content, vo.getMsgType());
 
         log.info("聊天消息: convId={}, from={}:{}, to={}:{}, content='{}'",
                 conversation.getId(), fromType, fromId, toType, toId,
@@ -205,14 +206,8 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
 
-        String json = JSON.toJSONString(java.util.Map.of(
-                "type", "read_receipt",
-                "conversationId", conversation.getId(),
-                "readerType", viewerType,
-                "readerId", viewerId,
-                "lastReadMsgId", lastReadMsgId
-        ));
-        ChatWebSocketServer.sendToUser(peerType, peerId, json);
+        pushService.pushReadReceipt(peerType, peerId, conversation.getId(),
+                viewerType, viewerId, lastReadMsgId);
         log.info("已读回执推送: convId={}, reader={}:{}, peer={}:{}, lastReadMsgId={}",
                 conversation.getId(), viewerType, viewerId, peerType, peerId, lastReadMsgId);
     }
@@ -256,20 +251,5 @@ public class ChatServiceImpl implements ChatService {
             vo.setSenderName(tenant != null && tenant.getNickname() != null ? tenant.getNickname() : "租客");
         }
         return vo;
-    }
-
-    /** 组装 WebSocket 推送 JSON。 */
-    private String buildPushJson(MessageVO vo, Long conversationId) {
-        return JSON.toJSONString(java.util.Map.of(
-                "type", "chat",
-                "msgId", vo.getId(),
-                "conversationId", conversationId,
-                "fromType", vo.getSenderType(),
-                "fromId", vo.getSenderId(),
-                "senderName", vo.getSenderName() == null ? "" : vo.getSenderName(),
-                "content", vo.getContent(),
-                "msgType", vo.getMsgType(),
-                "timestamp", System.currentTimeMillis()
-        ));
     }
 }

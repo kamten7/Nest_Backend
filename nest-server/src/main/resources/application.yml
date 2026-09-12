@@ -78,7 +78,7 @@ nest:
       model-name: ${NEST_AI_USER_MODEL:}
       temperature: 0.7
   websocket:
-    implementation: jsr356            # jsr356 | netty（Netty 迁移后切换）
+    implementation: netty             # jsr356 | netty（默认 Netty）
     netty:
       port: 8081
   contract:
