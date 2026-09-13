@@ -19,17 +19,17 @@ spring:
       password: ${nest.datasource.password}
   data:
     redis:
-      host: ${NEST_REDIS_HOST:}
-      port: ${NEST_REDIS_PORT:}
+      host: ${NEST_REDIS_HOST:localhost}
+      port: ${NEST_REDIS_PORT:6379}
       password: ${NEST_REDIS_PASSWORD:}
-      database: ${NEST_REDIS_DATABASE:}
-      timeout: ${NEST_REDIS_TIMEOUT:}
+      database: ${NEST_REDIS_DATABASE:0}
+      timeout: ${NEST_REDIS_TIMEOUT:3000}
       lettuce:
         pool:
-          min-idle: ${NEST_REDIS_POOL_MIN_IDLE:}
+          min-idle: ${NEST_REDIS_POOL_MIN_IDLE:1}
           max-idle: 8
-          max-active: ${NEST_REDIS_POOL_MAX_ACTIVE:}
-          max-wait: ${NEST_REDIS_POOL_MAX_WAIT:}
+          max-active: ${NEST_REDIS_POOL_MAX_ACTIVE:8}
+          max-wait: ${NEST_REDIS_POOL_MAX_WAIT:3000}
 
 # springdoc-openapi
 springdoc:
