@@ -71,8 +71,12 @@ public class AiUserServiceImpl implements AiUserService {
                         asyncContext.complete();
                     })
                     .start();
-        } catch (IOException e) {
-            log.error("AI 流式响应 IO 异常", e);
+        } catch (Exception e) {   // ★ 原 catch (IOException e) 改成 Exception
+            log.error("AI 对话异常 [tenantId={}]", tenantId, e);
+            try {
+                writeSSE(response.getWriter(), "[ERROR] " + MessageConstant.AI_SERVICE_ERROR);
+                writeSSE(response.getWriter(), "[DONE]");
+            } catch (Exception ignored) { }
             asyncContext.complete();
         }
     }

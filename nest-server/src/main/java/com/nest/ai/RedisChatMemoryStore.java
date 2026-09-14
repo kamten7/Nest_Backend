@@ -5,6 +5,7 @@ import dev.langchain4j.data.message.ChatMessageDeserializer;
 import dev.langchain4j.data.message.ChatMessageSerializer;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ import java.util.List;
  * 本类只做存储：把每个 memoryId（= tenantId）的记忆
  * 序列化成 JSON 存进 Redis，并带 TTL 自动过期
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RedisChatMemoryStore implements ChatMemoryStore {
@@ -41,20 +43,31 @@ public class RedisChatMemoryStore implements ChatMemoryStore {
     /** 取记忆：没有就返回空列表。★ 绝不能返回 null。 */
     @Override
     public List<ChatMessage> getMessages(Object memoryId) {
-        String json = redisTemplate.opsForValue().get(key(memoryId));
-        if (json == null || json.isBlank()) {
+        try {
+            String json = redisTemplate.opsForValue().get(key(memoryId));
+            if (json == null || json.isBlank()) {
+                return new ArrayList<>();
+            }
+            return ChatMessageDeserializer.messagesFromJson(json);
+        } catch (Exception e) {
+            // Redis 故障 → 当作"失忆"，不让对话直接 500
+            log.warn("读取 AI 记忆失败（降级为空）memoryId={}: {}", memoryId, e.getMessage());
             return new ArrayList<>();
         }
-        return ChatMessageDeserializer.messagesFromJson(json);
     }
 
     /** 存记忆：整体覆盖写入，并刷新 TTL。 */
     @Override
     public void updateMessages(Object memoryId, List<ChatMessage> messages) {
-        redisTemplate.opsForValue().set(
-                key(memoryId),
-                ChatMessageSerializer.messagesToJson(messages),
-                TTL);
+        try {
+            redisTemplate.opsForValue().set(
+                    key(memoryId),
+                    ChatMessageSerializer.messagesToJson(messages),
+                    TTL);
+        } catch (Exception e) {
+            // 写失败只记日志，不影响已返回给用户的回答
+            log.warn("写入 AI 记忆失败 memoryId={}: {}", memoryId, e.getMessage());
+        }
     }
 
     /** 删记忆：会话结束或用户点"清空对话"时调用。 */
