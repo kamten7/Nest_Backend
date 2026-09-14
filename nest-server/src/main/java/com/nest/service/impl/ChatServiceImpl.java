@@ -117,26 +117,32 @@ public class ChatServiceImpl implements ChatService {
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
-    /** 获取会话历史消息（分页），同时标记已读并推送已读回执。 */
+    /** 获取会话历史消息（分页），先做成员归属校验，再标记已读并推送已读回执。 */
     @Override
     public PageResult<MessageVO> getMessages(Long conversationId, String userType, Long userId,
-                                              Integer page, Integer pageSize) {
+                                             Integer page, Integer pageSize) {
+        // 1. 归属校验：当前用户必须是会话成员；不是成员一律按"不存在"处理，不暴露会话是否真的存在
+        Conversation conversation = conversationMapper.selectByIdAndMember(conversationId, userType, userId);
+        if (conversation == null) {
+            throw new BusinessException(MessageConstant.CONVERSATION_NOT_FOUND);
+        }
+
+        // 2. 分页拉消息（注意：startPage 必须紧贴它要分页的那条查询，中间不能再插别的 Mapper 调用）
         PageHelper.startPage(page, pageSize);
         List<Message> messages = messageMapper.selectByConversation(conversationId);
         PageInfo<Message> pageInfo = new PageInfo<>(messages);
 
+        // 3. 批量置已读（仅对方发的）+ 回推已读回执给对方
         messageMapper.updateReadByConversation(conversationId, userType, userId);
         for (Message m : messages) {
             if (!m.getSenderType().equals(userType) || !m.getSenderId().equals(userId)) {
                 m.setIsRead(1);
             }
         }
+        // 标记已读并推送已读回执给对方
+        notifyPeerRead(conversation, userType, userId);   // 直接复用第 1 步查出的会话，省一次 selectById
 
-        Conversation conversation = conversationMapper.selectById(conversationId);
-        if (conversation != null) {
-            notifyPeerRead(conversation, userType, userId);
-        }
-
+        // 4. 组装 VO
         List<MessageVO> vos = new ArrayList<>();
         for (Message m : messages) {
             vos.add(buildMessageVO(m, userType, userId, true));
@@ -179,7 +185,7 @@ public class ChatServiceImpl implements ChatService {
         if (conversationId == null || upToMsgId == null || readerType == null || readerId == null) {
             return;
         }
-        Conversation conversation = conversationMapper.selectById(conversationId);
+        Conversation conversation = conversationMapper.selectByIdAndMember(conversationId, readerType, readerId);
         if (conversation == null) {
             return;
         }

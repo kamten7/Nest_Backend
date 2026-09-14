@@ -35,4 +35,12 @@
         WHERE id = #{id}
     </update>
 
+
+    <select id="selectByIdAndMember" resultType="Conversation">
+        SELECT * FROM conversation
+        WHERE id = #{id}
+          AND ((user1_type = #{userType} AND user1_id = #{userId})
+            OR (user2_type = #{userType} AND user2_id = #{userId}))
+    </select>
+
 </mapper>

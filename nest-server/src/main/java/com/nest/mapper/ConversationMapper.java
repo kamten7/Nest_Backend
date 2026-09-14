@@ -27,6 +27,12 @@ public interface ConversationMapper {
     /** 按主键查会话（已读回执/推送需要确定对方身份） */
     Conversation selectById(@Param("id") Long id);
 
+    /** 按主键查会话，并校验指定用户是否为会话成员（越权防护）。非成员返回 null。 */
+    Conversation selectByIdAndMember(@Param("id") Long id,
+                                     @Param("userType") String userType,
+                                     @Param("userId") Long userId);
+
+
     /** 更新最后消息摘要和时间 */
     int updateLastMessage(@Param("id") Long id,
                           @Param("lastMessage") String lastMessage,
