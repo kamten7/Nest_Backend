@@ -30,7 +30,7 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
         }
 
         try {
-            Claims claims = JwtUtil.parseToken(JwtConstant.ADMIN_SECRET_KEY, token);
+            Claims claims = JwtUtil.parseToken(JwtConstant.adminSecretKey(), token);
             Long landlordId = claims.get("userId", Long.class);
             BaseContext.setCurrentId(landlordId);
             BaseContext.setCurrentType(JwtConstant.TYPE_LANDLORD);

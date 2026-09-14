@@ -104,9 +104,9 @@ public class NettyWebSocketServer {
     public static boolean authenticate(Channel channel, String userType, String userId, String token) {
         String secretKey;
         if (JwtConstant.TYPE_TENANT.equals(userType)) {
-            secretKey = JwtConstant.USER_SECRET_KEY;
+            secretKey = JwtConstant.userSecretKey();
         } else if (JwtConstant.TYPE_LANDLORD.equals(userType)) {
-            secretKey = JwtConstant.ADMIN_SECRET_KEY;
+            secretKey = JwtConstant.adminSecretKey();
         } else {
             return false;
         }

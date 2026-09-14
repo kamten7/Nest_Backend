@@ -53,9 +53,9 @@ public class ChatWebSocketConfigurator extends ServerEndpointConfig.Configurator
 
         String secretKey;
         if (JwtConstant.TYPE_TENANT.equals(pathUserType)) {
-            secretKey = JwtConstant.USER_SECRET_KEY;
+            secretKey = JwtConstant.userSecretKey();
         } else if (JwtConstant.TYPE_LANDLORD.equals(pathUserType)) {
-            secretKey = JwtConstant.ADMIN_SECRET_KEY;
+            secretKey = JwtConstant.adminSecretKey();
         } else {
             throw new SecurityException("非法的用户类型");
         }

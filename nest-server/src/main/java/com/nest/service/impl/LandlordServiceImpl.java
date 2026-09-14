@@ -60,7 +60,7 @@ public class LandlordServiceImpl implements LandlordService {
 
         // 4. 签发 JWT（claims 里放 userId + userType）
         String token = JwtUtil.createToken(
-                JwtConstant.ADMIN_SECRET_KEY,
+                JwtConstant.adminSecretKey(),
                 JwtConstant.ADMIN_TTL,
                 Map.of("userId", landlord.getId(), "userType", "landlord"));
 

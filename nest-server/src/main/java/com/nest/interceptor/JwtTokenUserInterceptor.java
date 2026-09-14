@@ -29,7 +29,7 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
                 return true;
             }
             try {
-                Claims claims = JwtUtil.parseToken(JwtConstant.USER_SECRET_KEY, optionalToken);
+                Claims claims = JwtUtil.parseToken(JwtConstant.userSecretKey(), optionalToken);
                 BaseContext.setCurrentId(claims.get("userId", Long.class));
                 BaseContext.setCurrentType(JwtConstant.TYPE_TENANT);
             } catch (Exception e) {
@@ -47,7 +47,7 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
         }
 
         try {
-            Claims claims = JwtUtil.parseToken(JwtConstant.USER_SECRET_KEY, token);
+            Claims claims = JwtUtil.parseToken(JwtConstant.userSecretKey(), token);
             Long tenantId = claims.get("userId", Long.class);
             BaseContext.setCurrentId(tenantId);
             BaseContext.setCurrentType(JwtConstant.TYPE_TENANT);

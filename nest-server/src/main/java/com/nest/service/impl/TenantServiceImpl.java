@@ -55,7 +55,7 @@ public class TenantServiceImpl implements TenantService {
         }
 
         String token = JwtUtil.createToken(
-                JwtConstant.USER_SECRET_KEY,
+                JwtConstant.userSecretKey(),
                 JwtConstant.USER_TTL,
                 Map.of("userId", tenant.getId(), "userType", "tenant"));
 
@@ -87,7 +87,7 @@ public class TenantServiceImpl implements TenantService {
         tenantMapper.insert(tenant);
 
         String token = JwtUtil.createToken(
-                JwtConstant.USER_SECRET_KEY,
+                JwtConstant.userSecretKey(),
                 JwtConstant.USER_TTL,
                 Map.of("userId", tenant.getId(), "userType", "tenant"));
 
