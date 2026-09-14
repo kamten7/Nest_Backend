@@ -4,6 +4,7 @@ import com.nest.ai.tools.HouseSearchTools;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.UserMessage;
@@ -37,7 +38,7 @@ public class NestAiAgent {
             - 用友好、简洁的中文回答
             """)
         @UserMessage("{{userMessage}}")
-        TokenStream chat(@V("userMessage") String userMessage);
+        TokenStream chat(@MemoryId Long tenantId, @V("userMessage") String userMessage);
     }
 
     /** 创建租客端 AI 助手 Bean。 */
@@ -47,8 +48,11 @@ public class NestAiAgent {
             HouseSearchTools houseSearchTools) {
         return AiServices.builder(TenantAiAssistant.class)
                 .streamingChatModel(streamingChatModel)
-                .chatMemory(MessageWindowChatMemory.withMaxMessages(20))
-                .tools(houseSearchTools)
+                // 按 @MemoryId（tenantId）隔离对话记忆：LangChain4j 内部用
+                // ConcurrentHashMap.computeIfAbsent 缓存，同一个 memoryId 只会调用一次本 provider。
+                // 用单例 chatMemory() 会让所有租客共用同一段上下文，造成跨用户串号/隐私泄露。
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))//最多20条消息
+                .tools(houseSearchTools)//添加工具
                 .build();
     }
 }

@@ -50,7 +50,7 @@ public class AiUserServiceImpl implements AiUserService {
 
         try {
             PrintWriter writer = response.getWriter();
-            TokenStream tokenStream = tenantAiAssistant.chat(message);
+            TokenStream tokenStream = tenantAiAssistant.chat(tenantId, message);
             tokenStream.onPartialResponse(token -> writeSSE(writer, token))
                     .onCompleteResponse(resp -> {
                         writeSSE(writer, "[DONE]");

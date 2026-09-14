@@ -15,6 +15,12 @@
         SELECT * FROM tenant WHERE id = #{id}
     </select>
 
+    <select id="selectByIds" resultType="Tenant">
+        SELECT id, nickname, avatar FROM tenant
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO tenant (openid, nickname, avatar, phone, gender, status, create_time, update_time)
         VALUES (#{openid}, #{nickname}, #{avatar}, #{phone}, #{gender}, 1, NOW(), NOW())

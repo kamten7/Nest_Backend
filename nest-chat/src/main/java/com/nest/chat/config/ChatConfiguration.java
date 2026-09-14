@@ -4,6 +4,7 @@ import com.nest.chat.transport.Jsr356Transport;
 import com.nest.chat.transport.MessageTransport;
 import com.nest.chat.transport.NettyTransport;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
@@ -21,6 +22,7 @@ public class ChatConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "nest.websocket.implementation", havingValue = "jsr356", matchIfMissing = true)
     public ServerEndpointExporter serverEndpointExporter() {
         return new ServerEndpointExporter();
     }

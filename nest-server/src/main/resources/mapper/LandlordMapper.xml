@@ -11,6 +11,12 @@
         SELECT * FROM landlord WHERE id = #{id}
     </select>
 
+    <select id="selectByIds" resultType="Landlord">
+        SELECT id, name, avatar FROM landlord
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO landlord (name, phone, password, status, create_time, update_time)
         VALUES (#{name}, #{phone}, #{password}, #{status}, NOW(), NOW())

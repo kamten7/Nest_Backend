@@ -21,11 +21,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** 聊天服务实现。 */
 @Slf4j
@@ -39,9 +45,9 @@ public class ChatServiceImpl implements ChatService {
     private final LandlordMapper landlordMapper;
     private final PushService pushService;
 
-    /** 发送聊天消息：校验→找/建会话→落库→更新会话→WebSocket 推送。 */
+    /** 发送聊天消息：校验→找/建会话→落库→更新会话 → netty推送。 */
     @Override
-    @Transactional
+    @Transactional// 事务管理
     public Long send(String fromType, Long fromId, String toType, Long toId,
                      String content, String msgType, String clientMsgId) {
         if (content == null || content.isBlank()) {
@@ -69,18 +75,24 @@ public class ChatServiceImpl implements ChatService {
                 .build();
         messageMapper.insert(message);
 
+        // 更新会话的最后消息内容和时间
         conversationMapper.updateLastMessage(conversation.getId(),
                 content.length() > 50 ? content.substring(0, 50) : content,
                 LocalDateTime.now());
 
         MessageVO vo = buildMessageVO(message, fromType, fromId, false);
-        pushService.pushChat(toType, toId, conversation.getId(), vo.getId(),
-                fromType, fromId, vo.getSenderName(), content, vo.getMsgType());
+
+        // 先落库、后推送：推送注册到事务提交之后执行。
+        // 放在事务里推的话，一旦本次事务回滚，对方会看到数据库里并不存在的消息。
+        Long conversationId = conversation.getId();
+        Long messageId = message.getId();
+        registerAfterCommitPush(() -> pushService.pushChat(toType, toId, conversationId, messageId,
+                fromType, fromId, vo.getSenderName(), content, vo.getMsgType()));
 
         log.info("聊天消息: convId={}, from={}:{}, to={}:{}, content='{}'",
-                conversation.getId(), fromType, fromId, toType, toId,
+                conversationId, fromType, fromId, toType, toId,
                 content.length() > 30 ? content.substring(0, 30) + "..." : content);
-        return message.getId();
+        return messageId;
     }
 
     /** 获取用户会话列表（分页）。 */
@@ -142,10 +154,11 @@ public class ChatServiceImpl implements ChatService {
         // 标记已读并推送已读回执给对方
         notifyPeerRead(conversation, userType, userId);   // 直接复用第 1 步查出的会话，省一次 selectById
 
-        // 4. 组装 VO
+        // 4. 组装 VO（发送者昵称批量预加载，避免逐条查询的 N+1）
+        Map<String, String> senderNames = loadSenderNames(messages);
         List<MessageVO> vos = new ArrayList<>();
         for (Message m : messages) {
-            vos.add(buildMessageVO(m, userType, userId, true));
+            vos.add(buildMessageVO(m, userType, userId, true, senderNames));
         }
         return PageResult.of(pageInfo.getTotal(), vos);
     }
@@ -190,7 +203,8 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         messageMapper.updateReadUpTo(conversationId, readerType, readerId, upToMsgId);
-        notifyPeerRead(conversation, readerType, readerId);
+        // 同样先存后发：已读回执也等事务提交后再推
+        registerAfterCommitPush(() -> notifyPeerRead(conversation, readerType, readerId));
     }
 
     /** 向消息发送方推送已读事件。 */
@@ -235,8 +249,19 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    /** 构建消息 VO。 */
+    /** 构建消息 VO（单条场景：发送者昵称直接查库）。 */
     private MessageVO buildMessageVO(Message m, String viewerType, Long viewerId, boolean includeMine) {
+        return buildMessageVO(m, viewerType, viewerId, includeMine, null);
+    }
+
+    /**
+     * 构建消息 VO。
+     *
+     * @param senderNames 发送者昵称缓存，key = {@code userType + ":" + userId}；
+     *                    传入时不再逐条查库（列表场景消除 N+1），为 {@code null} 时回退单条查询。
+     */
+    private MessageVO buildMessageVO(Message m, String viewerType, Long viewerId, boolean includeMine,
+                                     Map<String, String> senderNames) {
         MessageVO vo = new MessageVO();
         vo.setId(m.getId());
         vo.setConversationId(m.getConversationId());
@@ -249,13 +274,92 @@ public class ChatServiceImpl implements ChatService {
         if (includeMine) {
             vo.setMine(m.getSenderType().equals(viewerType) && m.getSenderId().equals(viewerId));
         }
+        vo.setSenderName(resolveSenderName(m, senderNames));
+        return vo;
+    }
+
+    /** 取发送者昵称：优先命中缓存，未命中再回退单条查询。 */
+    private String resolveSenderName(Message m, Map<String, String> senderNames) {
+        if (senderNames != null) {
+            String cached = senderNames.get(senderKey(m.getSenderType(), m.getSenderId()));
+            if (cached != null) {
+                return cached;
+            }
+        }
         if ("landlord".equals(m.getSenderType())) {
             Landlord landlord = landlordMapper.selectById(m.getSenderId());
-            vo.setSenderName(landlord != null && landlord.getName() != null ? landlord.getName() : "房东");
-        } else {
-            Tenant tenant = tenantMapper.selectById(m.getSenderId());
-            vo.setSenderName(tenant != null && tenant.getNickname() != null ? tenant.getNickname() : "租客");
+            return landlord != null && landlord.getName() != null ? landlord.getName() : "房东";
         }
-        return vo;
+        Tenant tenant = tenantMapper.selectById(m.getSenderId());
+        return tenant != null && tenant.getNickname() != null ? tenant.getNickname() : "租客";
+    }
+
+    /**
+     * 批量预加载一批消息的发送者昵称，消除逐条查库的 N+1（一页消息最多 2 次 SQL）。
+     * <p>key 带上 userType 前缀 —— 否则 tenant 5 与 landlord 5 会互相覆盖。
+     * <p>所有请求到的 ID 都会写入缓存（查不到则填默认昵称），保证调用方不再回退查库。
+     */
+    private Map<String, String> loadSenderNames(List<Message> messages) {
+        Set<Long> tenantIds = new HashSet<>();
+        Set<Long> landlordIds = new HashSet<>();
+        for (Message m : messages) {
+            if ("landlord".equals(m.getSenderType())) {
+                landlordIds.add(m.getSenderId());
+            } else {
+                tenantIds.add(m.getSenderId());
+            }
+        }
+
+        Map<String, String> names = new HashMap<>();
+        if (!landlordIds.isEmpty()) {
+            for (Landlord l : landlordMapper.selectByIds(landlordIds)) {
+                names.put(senderKey("landlord", l.getId()), l.getName() != null ? l.getName() : "房东");
+            }
+            for (Long id : landlordIds) {
+                names.putIfAbsent(senderKey("landlord", id), "房东");
+            }
+        }
+        if (!tenantIds.isEmpty()) {
+            for (Tenant t : tenantMapper.selectByIds(tenantIds)) {
+                names.put(senderKey("tenant", t.getId()), t.getNickname() != null ? t.getNickname() : "租客");
+            }
+            for (Long id : tenantIds) {
+                names.putIfAbsent(senderKey("tenant", id), "租客");
+            }
+        }
+        return names;
+    }
+
+    /** 昵称缓存的 key，避免 tenant / landlord 的 ID 撞车。 */
+    private static String senderKey(String userType, Long userId) {
+        return userType + ":" + userId;
+    }
+
+    /**
+     * 把推送任务挂到当前事务的 afterCommit 上 —— "先存后发"。
+     * <p>在事务内推送的话，一旦后续操作失败回滚，对方会看到数据库里并不存在的消息，双方状态永久不一致。
+     * <p>推送只是"尽力而为的通知"，落库才是唯一事实来源，因此推送失败绝不能影响已提交的数据。
+     */
+    private void registerAfterCommitPush(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            // 无事务时（理论上不会走到）直接执行
+            safePush(task);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                safePush(task);
+            }
+        });
+    }
+
+    /** 执行推送并吞掉异常：数据已落库，推送失败只记日志。 */
+    private void safePush(Runnable task) {
+        try {
+            task.run();
+        } catch (Exception e) {
+            log.error("事务提交后推送失败（数据已落库，不影响一致性）", e);
+        }
     }
 }

@@ -13,11 +13,14 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolConfig;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.concurrent.DefaultEventExecutorGroup;
+import io.netty.util.concurrent.EventExecutorGroup;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -47,13 +50,23 @@ public class NettyWebSocketServer {
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
 
+    /**
+     * 业务线程组：把 DB / MinIO 等阻塞操作挪出 IO 线程（EventLoop）。
+     * <p>不挂这个组的话，{@code NettyChannelHandler} 里的 JDBC 调用会跑在 EventLoop 上，
+     * 而一个 EventLoop 线程要照看几百上千条连接 —— 一次慢查询会冻结该线程上的所有连接。
+     * <p><b>注意</b>：该组的任务队列默认是<b>无界</b>的（maxPendingTasks = Integer.MAX_VALUE），
+     * 业务侧必须避免慢查询堆积，否则会 OOM。
+     */
+    private final EventExecutorGroup businessGroup = new DefaultEventExecutorGroup(
+            Math.max(4, Runtime.getRuntime().availableProcessors() * 2));
+
     @PostConstruct
     public void start() {
         if (!"netty".equalsIgnoreCase(properties.getImplementation())) {
             log.info("传输层实现为 {}，Netty 未启用", properties.getImplementation());
             return;
         }
-        new Thread(this::doStart, "netty-ws-init").start();
+        doStart();   // 同步启动：端口被占用等问题在启动期直接暴露，而不是在子线程里静默写日志
     }
 
     @PreDestroy
@@ -61,6 +74,7 @@ public class NettyWebSocketServer {
         if (serverChannel != null) {
             serverChannel.close();
         }
+        businessGroup.shutdownGracefully();
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
         }
@@ -86,9 +100,21 @@ public class NettyWebSocketServer {
                             ChannelPipeline p = ch.pipeline();
                             p.addLast(new HttpServerCodec());
                             p.addLast(new HttpObjectAggregator(65536));
-                            p.addLast(new IdleStateHandler(0, 0, netty.getIdleTimeoutSeconds()));
-                            p.addLast(new WebSocketServerProtocolHandler(netty.getPath() + "/{userType}/{userId}"));
-                            p.addLast(new NettyChannelHandler(dispatcher));
+                            // reader-idle：只判"客户端多久没给我东西"，避免被服务端自己的推送喂活
+                            p.addLast(new IdleStateHandler(netty.getIdleTimeoutSeconds(), 0, 0));
+                            // ① 握手鉴权：必须在协议处理器之前，解析路径 + token 并写入 Channel 属性
+                            p.addLast(new NettyHandshakeAuthHandler(netty.getPath()));
+                            // ② checkStartsWith=true 才能匹配 /ws/chat/{userType}/{userId} 这类动态路径
+                            p.addLast(new WebSocketServerProtocolHandler(
+                                    WebSocketServerProtocolConfig.newBuilder()
+                                            .websocketPath(netty.getPath())
+                                            .checkStartsWith(true)
+                                            .handshakeTimeoutMillis(10_000L)
+                                            .maxFramePayloadLength(64 * 1024)
+                                            .build()));
+                            // ③ 业务 handler 挂到业务线程组：DB 不再跑在 EventLoop 上。
+                            //    必须是最后一个 handler，且上面的握手鉴权不能挪进来（要在 IO 线程尽早完成）。
+                            p.addLast(businessGroup, new NettyChannelHandler(dispatcher));
                         }
                     });
 
@@ -96,7 +122,9 @@ public class NettyWebSocketServer {
             log.info("Netty WebSocket 服务器启动: port={}, path={}", netty.getPort(), netty.getPath());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.error("Netty WebSocket 启动失败", e);
+            throw new IllegalStateException("Netty WebSocket 启动被中断", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Netty WebSocket 启动失败: port=" + netty.getPort(), e);
         }
     }
 
