@@ -66,6 +66,10 @@ nest:
     access-key: ${NEST_MINIO_ACCESS_KEY:}
     secret-key: ${NEST_MINIO_SECRET_KEY:}
     bucket: ${NEST_MINIO_BUCKET:}
+  wechat:
+    appid: ${NEST_WECHAT_APPID:}
+    secret: ${NEST_WECHAT_SECRET:}
+    mock-enabled: ${NEST_WECHAT_MOCK:false}        # 生产严禁 true
   ai:
     admin:
       base-url: ${NEST_AI_ADMIN_BASE_URL:}

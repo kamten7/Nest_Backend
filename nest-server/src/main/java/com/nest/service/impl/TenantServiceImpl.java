@@ -1,6 +1,7 @@
 package com.nest.service.impl;
 
 import com.nest.common.BaseContext;
+import com.nest.config.WeChatProperties;
 import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
 import com.nest.dto.TenantLoginDTO;
@@ -10,14 +11,15 @@ import com.nest.entity.Tenant;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.TenantMapper;
 import com.nest.service.TenantService;
+import com.nest.service.WxAuthService;
 import com.nest.utils.JwtUtil;
 import com.nest.vo.TenantLoginVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-import java.util.UUID;
 
 /** 租客服务实现。 */
 @Slf4j
@@ -26,6 +28,8 @@ import java.util.UUID;
 public class TenantServiceImpl implements TenantService {
 
     private final TenantMapper tenantMapper;
+    private final WxAuthService wxAuthService;
+    private final WeChatProperties weChatProperties;
 
     /** 租客登录（支持微信 code 或手机号）。 */
     @Override
@@ -42,8 +46,17 @@ public class TenantServiceImpl implements TenantService {
                         .avatar(dto.getAvatar())
                         .status(1)
                         .build();
-                tenantMapper.insert(tenant);
-                log.info("微信新用户自动注册: openid={}, id={}", openid, tenant.getId());
+                try {
+                    tenantMapper.insert(tenant);
+                    log.info("微信新用户自动注册: id={}", tenant.getId());
+                } catch (DuplicateKeyException e) {
+                    // 并发首次登录：另一线程已插入相同 openid，回查继续登录
+                    log.info("并发首次登录，回查已存在的租客");
+                    tenant = tenantMapper.selectByOpenid(openid);
+                    if (tenant == null) {
+                        throw e;
+                    }
+                }
             }
         } else if (dto.getPhone() != null && !dto.getPhone().isEmpty()) {
             tenant = tenantMapper.selectByPhone(dto.getPhone());
@@ -77,7 +90,7 @@ public class TenantServiceImpl implements TenantService {
         }
 
         Tenant tenant = Tenant.builder()
-                .openid(UUID.randomUUID().toString())
+                .openid(null)
                 .nickname(dto.getNickname())
                 .avatar(dto.getAvatar())
                 .phone(dto.getPhone())
@@ -135,10 +148,12 @@ public class TenantServiceImpl implements TenantService {
         }
     }
 
-    /** 用微信 code 换取 openid（当前返回 mock 值用于开发调试）。 */
+    /** 用微信 code 换取 openid。mock 模式返回伪造值（仅本地开发），否则调用微信 jscode2session。 */
     private String resolveOpenid(String code) {
-        // TODO: 接入微信 API 后替换为真实请求
-        log.info("微信登录 code={}，返回 mock openid", code);
-        return "wx_" + code;
+        if (weChatProperties.isMockEnabled()) {
+            log.warn("微信登录 MOCK 模式：openid 为伪造值，仅限本地开发。code={}", code);
+            return "wx_" + code;
+        }
+        return wxAuthService.code2Openid(code);
     }
 }
