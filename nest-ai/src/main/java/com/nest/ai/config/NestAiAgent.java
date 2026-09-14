@@ -12,6 +12,7 @@ import dev.langchain4j.service.V;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 
 /** Nest AI 找房助手 —— 基于 LangChain4j AiServices 的 Function Calling Agent。 */
 @Configuration
@@ -45,13 +46,19 @@ public class NestAiAgent {
     @Bean
     public TenantAiAssistant tenantAiAssistant(
             @Qualifier("userStreamingChatModel") OpenAiStreamingChatModel streamingChatModel,
-            HouseSearchTools houseSearchTools) {
+            HouseSearchTools houseSearchTools,
+            ChatMemoryStore chatMemoryStore) {
         return AiServices.builder(TenantAiAssistant.class)
                 .streamingChatModel(streamingChatModel)
                 // 按 @MemoryId（tenantId）隔离对话记忆：LangChain4j 内部用
                 // ConcurrentHashMap.computeIfAbsent 缓存，同一个 memoryId 只会调用一次本 provider。
                 // 用单例 chatMemory() 会让所有租客共用同一段上下文，造成跨用户串号/隐私泄露。
-                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))//最多20条消息
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
+                        .id(memoryId)//id绑定memoryId，确保隔离
+                        .maxMessages(20)
+                        .chatMemoryStore(chatMemoryStore)
+                        .build()
+                )
                 .tools(houseSearchTools)//添加工具
                 .build();
     }
