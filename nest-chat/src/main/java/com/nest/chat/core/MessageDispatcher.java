@@ -47,12 +47,17 @@ public class MessageDispatcher {
             log.warn("聊天消息缺少 toType/toId");
             return;
         }
+        String content = json.getString("content");
+        if (content == null || content.isBlank()) {
+            log.warn("聊天消息内容为空，已丢弃: from={}:{}", fromType, fromId);
+            return;
+        }
         MessageListener listener = listenerProvider.getIfAvailable();
         if (listener == null) {
             log.warn("未注册 MessageListener，聊天消息被丢弃");
             return;
         }
-        listener.onChat(fromType, fromId, toType, toId, json.getString("content"),
+        listener.onChat(fromType, fromId, toType, toId, content,
                 json.getString("msgType"), json.getString("clientMsgId"));
     }
 

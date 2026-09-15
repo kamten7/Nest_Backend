@@ -7,6 +7,7 @@ import com.nest.service.AppointmentService;
 import com.nest.vo.AppointmentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +31,7 @@ public class AppointmentUserController {
      */
     @PostMapping
     @Operation(summary = "创建预约", description = "租客预约看房，成功后通知房东")
-    public Result<Long> create(@RequestBody AppointmentCreateDTO dto) {
+    public Result<Long> create(@Valid @RequestBody AppointmentCreateDTO dto) {
         log.info("创建预约: houseId={}, time={}", dto.getHouseId(), dto.getAppointmentTime());
         Long id = appointmentService.create(dto);
         return Result.success("预约成功，请等待房东确认", id);

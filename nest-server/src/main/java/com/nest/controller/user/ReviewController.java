@@ -8,6 +8,7 @@ import com.nest.service.ReviewService;
 import com.nest.vo.ReviewVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public class ReviewController {
      */
     @PostMapping
     @Operation(summary = "发表评论", description = "租客对房源评分(1-5)+文字评论，每个租客每房源限评一次")
-    public Result<Long> create(@RequestBody ReviewCreateDTO dto) {
+    public Result<Long> create(@Valid @RequestBody ReviewCreateDTO dto) {
         log.info("发表评论: houseId={}, rating={}", dto.getHouseId(), dto.getRating());
         Long id = reviewService.createReview(dto.getHouseId(), dto.getRating(), dto.getContent());
         return Result.success("评价成功", id);
@@ -56,7 +57,7 @@ public class ReviewController {
      */
     @PostMapping("/{id}/comment")
     @Operation(summary = "回复评论", description = "租客或房东回复评论，支持嵌套")
-    public Result<Long> addComment(@PathVariable Long id, @RequestBody ReviewCommentDTO dto) {
+    public Result<Long> addComment(@PathVariable Long id, @Valid @RequestBody ReviewCommentDTO dto) {
         log.info("回复评论: reviewId={}", id);
         Long commentId = reviewService.addComment(id, dto.getContent(), dto.getParentId());
         return Result.success("回复成功", commentId);

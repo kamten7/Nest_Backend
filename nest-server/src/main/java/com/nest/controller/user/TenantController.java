@@ -9,6 +9,7 @@ import com.nest.service.TenantService;
 import com.nest.vo.TenantLoginVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +31,7 @@ public class TenantController {
      */
     @PostMapping("/login")
     @Operation(summary = "租客登录", description = "微信 code 登录或手机号登录")
-    public Result<TenantLoginVO> login(@RequestBody TenantLoginDTO dto) {
+    public Result<TenantLoginVO> login(@Valid @RequestBody TenantLoginDTO dto) {
         log.info("租客登录请求: code={}, phone={}", dto.getCode(), dto.getPhone());
         TenantLoginVO vo = tenantService.login(dto);
         return Result.success("登录成功", vo);
@@ -41,7 +42,7 @@ public class TenantController {
      */
     @PostMapping("/register")
     @Operation(summary = "租客注册", description = "手机号注册")
-    public Result<TenantLoginVO> register(@RequestBody TenantRegisterDTO dto) {
+    public Result<TenantLoginVO> register(@Valid @RequestBody TenantRegisterDTO dto) {
         log.info("租客注册请求: phone={}", dto.getPhone());
         TenantLoginVO vo = tenantService.register(dto);
         return Result.success("注册成功", vo);
@@ -63,7 +64,7 @@ public class TenantController {
      */
     @PutMapping("/profile")
     @Operation(summary = "完善个人信息", description = "微信登录后填写/更新手机号等个人信息")
-    public Result<Void> updateProfile(@RequestBody TenantProfileDTO dto) {
+    public Result<Void> updateProfile(@Valid @RequestBody TenantProfileDTO dto) {
         log.info("租客完善个人信息请求: phone={}", dto.getPhone());
         tenantService.updateProfile(dto);
         return Result.successMsg("个人信息更新成功");

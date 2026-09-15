@@ -14,6 +14,7 @@ import com.nest.vo.HouseVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -44,7 +45,7 @@ public class HouseAdminController {
     /** 发布房源。 */
     @PostMapping
     @Operation(summary = "发布房源")
-    public Result<Long> create(@RequestBody HouseCreateDTO dto) {
+    public Result<Long> create(@Valid @RequestBody HouseCreateDTO dto) {
         log.info("发布房源: title='{}', city={}, price={}", dto.getTitle(), dto.getCity(), dto.getPrice());
         Long houseId = houseService.create(dto);
         return Result.success("发布成功", houseId);
@@ -53,7 +54,7 @@ public class HouseAdminController {
     /** 编辑房源。 */
     @PutMapping("/{id}")
     @Operation(summary = "编辑房源")
-    public Result<Void> update(@PathVariable Long id, @RequestBody HouseCreateDTO dto) {
+    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody HouseCreateDTO dto) {
         log.info("编辑房源: id={}", id);
         houseService.update(id, dto);
         return Result.successMsg("编辑成功");
@@ -108,7 +109,7 @@ public class HouseAdminController {
     /** 地址→经纬度（Nominatim 地理编码）。 */
     @PostMapping("/geocode")
     @Operation(summary = "地址地理编码")
-    public Result<GeocodeVO> geocode(@RequestBody GeocodeDTO dto) {
+    public Result<GeocodeVO> geocode(@Valid @RequestBody GeocodeDTO dto) {
         log.info("地理编码请求: address='{}'", dto.getAddress());
         GeocodeVO result = nominatimService.geocode(dto.getAddress());
         if (result == null) {
@@ -120,11 +121,8 @@ public class HouseAdminController {
     /** 经纬度→地址（反向地理编码，地图选点发布房源用）。 */
     @PostMapping("/geocode/reverse")
     @Operation(summary = "反向地理编码")
-    public Result<GeocodeVO> reverseGeocode(@RequestBody ReverseGeocodeDTO dto) {
+    public Result<GeocodeVO> reverseGeocode(@Valid @RequestBody ReverseGeocodeDTO dto) {
         log.info("反向地理编码请求: lat={}, lng={}", dto.getLat(), dto.getLng());
-        if (dto.getLat() == null || dto.getLng() == null) {
-            return Result.error("经纬度不能为空");
-        }
         GeocodeVO result = nominatimService.reverseGeocode(dto.getLat(), dto.getLng());
         if (result == null) {
             return Result.error("无法解析该坐标，请换一个位置");

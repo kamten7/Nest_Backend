@@ -9,6 +9,7 @@ import com.nest.service.LandlordService;
 import com.nest.vo.LandlordLoginVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +33,7 @@ public class LandlordController {
      */
     @PostMapping("/login")
     @Operation(summary = "房东登录", description = "用手机号 + 密码登录，返回 JWT Token")
-    public Result<LandlordLoginVO> login(@RequestBody LandlordLoginDTO dto) {
+    public Result<LandlordLoginVO> login(@Valid @RequestBody LandlordLoginDTO dto) {
         log.info("房东登录请求: phone={}", dto.getPhone());
         LandlordLoginVO vo = landlordService.login(dto);
         return Result.success("登录成功", vo);
