@@ -175,7 +175,6 @@ public class ReviewServiceImpl implements ReviewService {
         log.info("评论点赞切换: commentId={}, tenantId={}, liked={}", commentId, tenantId, liked);
     }
 
-    /** 组装回复 VO（含评论者名 + 点赞状态）。 */
     private List<ReviewCommentVO> buildCommentVOs(List<ReviewComment> comments, Long currentUserId, String currentType) {
         if (comments == null || comments.isEmpty()) {
             return new ArrayList<>();

@@ -8,12 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * 租房订单 Mapper。
- *
- * <p>所有状态流转都用「带 fromStatus 条件的 UPDATE」实现：影响行数为 0 即代表
- * 并发下状态已被改变，调用方据此拒绝重复操作（幂等）。
- */
+/** 租房订单 Mapper。 */
 @Mapper
 public interface RentOrderMapper {
 
@@ -22,10 +17,7 @@ public interface RentOrderMapper {
     /** 按订单号查询（用于对账 / 幂等排查） */
     RentOrder selectByOrderNo(@Param("orderNo") String orderNo);
 
-    /**
-     * 按来源预约查询订单。用于「同一预约只能生成一个有效订单」的防重复校验 ——
-     * 仅靠预约状态置 5 已成交不够，还需要这道兜底。
-     */
+    /** 按来源预约查询订单。用于「同一预约只能生成一个有效订单」的防重复校验 —— */
     RentOrder selectByAppointmentId(@Param("appointmentId") Long appointmentId);
 
     int insert(RentOrder order);

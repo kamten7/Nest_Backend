@@ -7,9 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 房源列表展示视图（不含完整图片列表和房东详情）。
- */
+/** 房源列表展示视图（不含完整图片列表和房东详情） */
 @Data
 public class HouseVO {
 
@@ -18,7 +16,6 @@ public class HouseVO {
     private String landlordName;
     private String landlordAvatar;
     private String title;
-    /** 房源描述（详情接口返回） */
     private String description;
     private String address;
     private String province;
@@ -42,14 +39,9 @@ public class HouseVO {
     private Integer status;
     private Integer viewCount;
 
-    /** 封面图 URL */
     private String coverImage;
-    /** 所有图片 URL（仅详情接口返回，列表接口为空） */
     private List<String> images;
-    /** 标签列表 */
     private List<String> tags;
-    /** 距离文本（如 "1.2km"，仅当用户提供坐标时计算） */
     private String distanceText;
-    /** 创建时间 */
     private LocalDateTime createTime;
 }

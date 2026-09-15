@@ -4,9 +4,7 @@ import com.nest.common.PageResult;
 import com.nest.dto.AppointmentCreateDTO;
 import com.nest.vo.AppointmentVO;
 
-/**
- * 预约服务接口。
- */
+/** 预约服务接口 */
 public interface AppointmentService {
 
     /** 创建预约（租客） */

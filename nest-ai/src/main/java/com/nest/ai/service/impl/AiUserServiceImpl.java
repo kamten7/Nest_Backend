@@ -25,6 +25,7 @@ public class AiUserServiceImpl implements AiUserService {
     }
 
     @Override
+    /** 流式 AI 找房对话（SSE）；catch 用 Exception 而非 IOException 以兜住所有异常。 */
     public void streamChat(String message, AsyncContext asyncContext) {
         HttpServletResponse response = (HttpServletResponse) asyncContext.getResponse();
         response.setContentType("text/event-stream");
@@ -71,7 +72,7 @@ public class AiUserServiceImpl implements AiUserService {
                         asyncContext.complete();
                     })
                     .start();
-        } catch (Exception e) {   // ★ 原 catch (IOException e) 改成 Exception
+        } catch (Exception e) {
             log.error("AI 对话异常 [tenantId={}]", tenantId, e);
             try {
                 writeSSE(response.getWriter(), "[ERROR] " + MessageConstant.AI_SERVICE_ERROR);

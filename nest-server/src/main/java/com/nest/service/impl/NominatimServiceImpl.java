@@ -128,7 +128,6 @@ public class NominatimServiceImpl implements NominatimService {
         }
     }
 
-    /** 速率限制：保证两次 Nominatim 请求间隔至少 1 秒。 */
     private void rateLimit() {
         synchronized (rateLimitLock) {
             long now = System.currentTimeMillis();
@@ -144,7 +143,6 @@ public class NominatimServiceImpl implements NominatimService {
         }
     }
 
-    /** MD5 哈希（用于 Redis key）。 */
     private static String md5(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

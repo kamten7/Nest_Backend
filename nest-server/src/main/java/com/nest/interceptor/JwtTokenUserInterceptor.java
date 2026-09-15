@@ -22,7 +22,6 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 可选认证路径：带 token 就解析身份，不带也放行（游客可浏览）
         if (isOptionalAuthPath(request.getRequestURI())) {
             String optionalToken = request.getHeader(JwtConstant.USER_TOKEN_NAME);
             if (optionalToken == null || optionalToken.isEmpty()) {
@@ -38,7 +37,6 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 普通受保护接口：必须带有效 token
         String token = request.getHeader(JwtConstant.USER_TOKEN_NAME);
         if (token == null || token.isEmpty()) {
             response.setStatus(401);

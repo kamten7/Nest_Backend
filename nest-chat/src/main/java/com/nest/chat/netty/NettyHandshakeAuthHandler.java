@@ -19,16 +19,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-/**
- * WebSocket 握手鉴权。
- * 从 HTTP Upgrade 请求中解析路径参数与 token，校验 JWT 与路径 userId 是否一致，
- * 通过则写入 Channel 属性并把请求交给后续的协议处理器；失败直接返回 401 并关闭连接。
- * 必须放在 WebSocketServerProtocolHandler 之前。
- */
+/** WebSocket 握手鉴权。 */
 @Slf4j
 public class NettyHandshakeAuthHandler extends ChannelInboundHandlerAdapter {
 
-    /** 基础路径，如 /ws/chat */
     private final String basePath;
 
     public NettyHandshakeAuthHandler(String basePath) {
@@ -63,7 +57,6 @@ public class NettyHandshakeAuthHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        // 鉴权通过：把请求继续交给 WebSocketServerProtocolHandler 完成握手
         ctx.fireChannelRead(request);
     }
 

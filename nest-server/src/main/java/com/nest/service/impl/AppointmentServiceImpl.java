@@ -43,8 +43,6 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final TenantMapper tenantMapper;
     private final PushService pushService;
 
-    // ==================== 租客端 ====================
-
     /** 创建预约看房请求。 */
     @Override
     @Transactional
@@ -110,8 +108,6 @@ public class AppointmentServiceImpl implements AppointmentService {
                 "appointment", "预约已被取消", "租客取消了看房预约");
     }
 
-    // ==================== 房东端 ====================
-
     /** 房东查看预约列表（可按状态筛选，分页）。 */
     @Override
     public PageResult<AppointmentVO> landlordList(Integer status, Integer page, Integer pageSize) {
@@ -171,9 +167,6 @@ public class AppointmentServiceImpl implements AppointmentService {
                 "appointment", "预约已被取消", "房东取消了看房预约");
     }
 
-    // ==================== 内部方法 ====================
-
-    /** 查询预约并校验存在。 */
     private Appointment getAndCheck(Long id) {
         Appointment appointment = appointmentMapper.selectById(id);
         if (appointment == null) {
@@ -182,14 +175,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         return appointment;
     }
 
-    /** 校验预约属于当前房东。 */
     private void checkLandlordOwns(Appointment appointment, Long landlordId) {
         if (!appointment.getLandlordId().equals(landlordId)) {
             throw new BusinessException(MessageConstant.APPOINTMENT_NOT_OWNER);
         }
     }
 
-    /** 组装预约 VO 列表。 */
     private List<AppointmentVO> buildVOs(List<Appointment> appointments) {
         if (appointments == null || appointments.isEmpty()) {
             return Collections.emptyList();
@@ -230,7 +221,6 @@ public class AppointmentServiceImpl implements AppointmentService {
         return vos;
     }
 
-    /** 推送预约通知。 */
     private void pushNotification(String userType, Long userId, String type, String title, String content) {
         pushService.pushNotice(userType, userId, type, title, content);
     }

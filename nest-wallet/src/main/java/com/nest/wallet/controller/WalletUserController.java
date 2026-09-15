@@ -15,9 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 租客端钱包接口。
- */
+/** 租客端钱包接口。 */
 @Slf4j
 @RestController
 @RequestMapping("/user/wallet")
@@ -27,9 +25,7 @@ public class WalletUserController {
 
     private final WalletService walletService;
 
-    /**
-     * 查询我的钱包余额。
-     */
+    /** 查询我的钱包余额。 */
     @GetMapping
     @Operation(summary = "查询我的钱包", description = "返回当前租客的钱包余额")
     public Result<WalletVO> getMyWallet() {
@@ -37,9 +33,7 @@ public class WalletUserController {
         return Result.success(vo);
     }
 
-    /**
-     * 充值（模拟，预留微信支付）。
-     */
+    /** 充值（模拟，预留微信支付）。 */
     @PostMapping("/recharge")
     @Operation(summary = "充值", description = "模拟充值，当前不调微信支付")
     public Result<WalletVO> recharge(@Valid @RequestBody WalletAmountDTO dto) {
@@ -48,9 +42,7 @@ public class WalletUserController {
         return Result.success("充值成功", vo);
     }
 
-    /**
-     * 提现（预留微信零钱到账）。
-     */
+    /** 提现（预留微信零钱到账）。 */
     @PostMapping("/withdraw")
     @Operation(summary = "提现", description = "提交提现申请，落处理中流水，暂未实际打款")
     public Result<WalletVO> withdraw(@Valid @RequestBody WalletAmountDTO dto) {
@@ -59,9 +51,7 @@ public class WalletUserController {
         return Result.success("提现申请已提交", vo);
     }
 
-    /**
-     * 钱包流水（分页，可按业务类型筛选）。
-     */
+    /** 钱包流水（分页，可按业务类型筛选）。 */
     @GetMapping("/transactions")
     @Operation(summary = "钱包流水", description = "分页查询收支明细，可按业务类型筛选")
     public Result<PageResult<WalletTransactionVO>> transactions(

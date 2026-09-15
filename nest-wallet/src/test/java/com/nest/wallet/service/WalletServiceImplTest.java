@@ -36,21 +36,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钱包服务单元测试。
- *
- * <p>对应租客端 4 个钱包接口的业务逻辑：
- * <ul>
- *   <li>{@code GET  /user/wallet}                → {@link WalletService#getWalletVO}</li>
- *   <li>{@code POST /user/wallet/recharge}       → {@link WalletService#recharge}</li>
- *   <li>{@code POST /user/wallet/withdraw}       → {@link WalletService#withdraw}</li>
- *   <li>{@code GET  /user/wallet/transactions}   → {@link WalletService#listTransactions}</li>
- * </ul>
- * 另含 Day2 才会被调用的 {@link WalletService#transferPay}（双向记账，风险最高）。
- *
- * <p>纯 Mockito 单元测试：不启动 Spring、不连 MySQL/Redis，只验证服务层
- * 的金额计算、状态流转、流水字段与「失败时不得留下半截数据」的约束。
- */
+/** 钱包服务单元测试。 */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("钱包服务单元测试")
 class WalletServiceImplTest {
@@ -70,11 +56,9 @@ class WalletServiceImplTest {
 
     @AfterEach
     void clearPageHelper() {
-        // PageHelper 用 ThreadLocal 传分页参数，不清理会污染后续用例
         PageHelper.clearPage();
     }
 
-    // ==================== 测试数据构造 ====================
 
     private Wallet wallet(Long id, String balance, Integer status) {
         return Wallet.builder()
@@ -107,7 +91,6 @@ class WalletServiceImplTest {
         return captor;
     }
 
-    // ==================== 1. GET /user/wallet（查余额） ====================
 
     @Test
     @DisplayName("查余额：钱包已存在时直接返回余额，不重复创建")
@@ -143,7 +126,6 @@ class WalletServiceImplTest {
     @Test
     @DisplayName("查余额：并发下 insert 撞唯一索引，回落重查而不是报错")
     void getWalletVO_whenConcurrentInsertConflict_requeriesAndSucceeds() {
-        // 第一次查不到 → insert 撞唯一键 → 再查拿到对方已建好的钱包
         when(walletMapper.selectByUser(TENANT, USER_ID))
                 .thenReturn(null, wallet(WALLET_ID, "12.00", 1));
         when(walletMapper.insert(any(Wallet.class)))
@@ -166,7 +148,6 @@ class WalletServiceImplTest {
         assertThat(vo.getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
-    // ==================== 2. POST /user/wallet/recharge（充值） ====================
 
     @Test
     @DisplayName("充值：余额累加并落一条 RECHARGE 成功收入流水")
@@ -205,7 +186,6 @@ class WalletServiceImplTest {
                     .hasMessage(MessageConstant.WALLET_AMOUNT_INVALID);
         }
 
-        // checkAmount 在最前面，连钱包都不该查
         verify(walletMapper, never()).selectByUser(any(), any());
         verify(walletMapper, never()).increaseBalance(any(), any());
         verify(walletTransactionMapper, never()).insert(any(WalletTransaction.class));
@@ -239,7 +219,6 @@ class WalletServiceImplTest {
         verify(walletTransactionMapper, times(1)).insert(any(WalletTransaction.class));
     }
 
-    // ==================== 3. POST /user/wallet/withdraw（提现） ====================
 
     @Test
     @DisplayName("提现：余额扣减并落一条 WITHDRAW 处理中支出流水")
@@ -256,7 +235,6 @@ class WalletServiceImplTest {
         assertThat(txn.getDirection()).isEqualTo(WalletConstant.DIRECTION_OUT);
         assertThat(txn.getAmount()).isEqualByComparingTo("30.00");
         assertThat(txn.getBalanceAfter()).isEqualByComparingTo("70.00");
-        // 提现是「申请」，先挂处理中，等真实打款再置成功
         assertThat(txn.getStatus()).isEqualTo(WalletConstant.STATUS_PENDING);
         assertThat(txn.getBizNo()).startsWith("WD");
         assertThat(txn.getRemark()).isEqualTo("提现申请（待打款）");
@@ -272,7 +250,6 @@ class WalletServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
 
-        // 关键回归点：扣款失败不能留下「有流水没扣钱」的假账
         verify(walletTransactionMapper, never()).insert(any(WalletTransaction.class));
         verify(walletMapper, never()).increaseBalance(any(), any());
     }
@@ -300,7 +277,6 @@ class WalletServiceImplTest {
         verify(walletMapper, never()).decreaseBalance(any(), any());
     }
 
-    // ==================== 4. GET /user/wallet/transactions（流水） ====================
 
     @Test
     @DisplayName("流水：字段透传 + bizType 翻译成中文，direction 保持原值")
@@ -372,13 +348,11 @@ class WalletServiceImplTest {
 
         walletService.listTransactions(TENANT, USER_ID, null, 0, -5);
 
-        // 归一化发生在 startPage 之后、查询之前，借 PageHelper 的 ThreadLocal 验证
         assertThat(PageHelper.getLocalPage()).isNotNull();
         assertThat(PageHelper.getLocalPage().getPageNum()).isEqualTo(1);
         assertThat(PageHelper.getLocalPage().getPageSize()).isEqualTo(20);
     }
 
-    // ==================== 5. transferPay（双向记账，Day2 使用） ====================
 
     @Test
     @DisplayName("转账：扣付款方、入收款方，两笔流水同 bizNo 且 peer 互指")
@@ -394,7 +368,6 @@ class WalletServiceImplTest {
         when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("100.00"))).thenReturn(1);
         when(walletMapper.increaseBalance(202L, new BigDecimal("100.00"))).thenReturn(1);
 
-        // 模拟主键回填：第一笔付款流水 201，第二笔收款流水 202
         AtomicLong seq = new AtomicLong(200L);
         when(walletTransactionMapper.insert(any(WalletTransaction.class))).thenAnswer(invocation -> {
             WalletTransaction t = invocation.getArgument(0);
@@ -428,7 +401,6 @@ class WalletServiceImplTest {
         assertThat(income.getBalanceAfter()).isEqualByComparingTo("100.00");
         assertThat(income.getBizNo()).isEqualTo(bizNo);
         assertThat(income.getRemark()).isEqualTo("收取押金");
-        // 收款流水回指付款流水，形成对账闭环
         assertThat(income.getPeerTxnId()).isEqualTo(201L);
 
         verify(walletTransactionMapper, times(1)).updatePeerTxn(201L, 202L);
@@ -512,7 +484,6 @@ class WalletServiceImplTest {
         verify(walletTransactionMapper, never()).insert(any(WalletTransaction.class));
     }
 
-    // ==================== 6. 辅助行为 ====================
 
     @Test
     @DisplayName("bizType 未知时中文映射回退为原值，不返回 null")

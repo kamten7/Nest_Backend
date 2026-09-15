@@ -37,13 +37,10 @@ public class NettyChannelHandler extends SimpleChannelInboundHandler<TextWebSock
     /** 处理用户事件：握手完成则登记通道，心跳超时则关闭连接。 */
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        // 握手完成才是登记的时机：此时鉴权已通过、属性已写入
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
             NettyWebSocketServer.register(ctx.channel());
             return;
         }
-        // reader-idle：客户端 idleTimeoutSeconds 内没发任何东西（含心跳）即判定死连接。
-        // 不能用 ALL_IDLE —— 服务端每次推送都会产生"写"，会把死连接的计时器一直刷新。
         if (evt instanceof IdleStateEvent event && event.state() == IdleState.READER_IDLE) {
             log.debug("读空闲超时，关闭连接: {}", ctx.channel().remoteAddress());
             ctx.close();

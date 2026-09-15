@@ -3,9 +3,7 @@ package com.nest.service;
 import com.nest.common.PageResult;
 import com.nest.vo.ReviewVO;
 
-/**
- * 评论服务接口。
- */
+/** 评论服务接口 */
 public interface ReviewService {
 
     /** 发表评论（租客，一房一评） */

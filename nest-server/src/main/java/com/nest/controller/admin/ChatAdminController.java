@@ -13,11 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 房东端聊天接口。
- * 主要是房东端的聊天管理，包括查看会话列表、历史消息等。
- * chat--聊天
- */
+/** 房东端聊天接口。 */
 @Slf4j
 @RestController
 @RequestMapping("/admin/chat")
@@ -31,14 +27,14 @@ public class ChatAdminController {
     @GetMapping("/conversations")
     @Operation(summary = "会话列表", description = "当前房东的所有会话（含对方信息+未读数）")
     public Result<PageResult<ConversationVO>> conversations(
-            @RequestParam(defaultValue = "1") Integer page,//当前页码
-            @RequestParam(defaultValue = "20") Integer pageSize//每页数量
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize
     ) {
         PageResult<ConversationVO> result = chatService.listConversations(
-                JwtConstant.TYPE_LANDLORD, //用户类型
-                BaseContext.getCurrentId(),//当前房东ID
-                page,//当前页码
-                pageSize//每页数量
+                JwtConstant.TYPE_LANDLORD,
+                BaseContext.getCurrentId(),
+                page,
+                pageSize
         );
         return Result.success(result);
     }

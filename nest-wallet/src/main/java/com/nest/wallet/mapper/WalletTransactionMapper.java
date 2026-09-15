@@ -6,9 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-/**
- * 钱包流水 Mapper。
- */
+/** 钱包流水 Mapper。 */
 @Mapper
 public interface WalletTransactionMapper {
 

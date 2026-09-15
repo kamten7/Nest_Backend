@@ -46,8 +46,6 @@ public class HouseServiceImpl implements HouseService {
     private final LandlordMapper landlordMapper;
     private final MinioService minioService;
 
-    // ==================== 房东端 ====================
-
     /** 创建房源（房东端）。 */
     @Override
     @Transactional
@@ -128,8 +126,6 @@ public class HouseServiceImpl implements HouseService {
         }
         return minioService.upload(file, "house");
     }
-
-    // ==================== 用户端 ====================
 
     /** 用户端房源列表（公开，分页+筛选+距离）。 */
     @Override
@@ -217,8 +213,6 @@ public class HouseServiceImpl implements HouseService {
         return vo;
     }
 
-    // ==================== 地图 ====================
-
     /** 地图房源标记查询（用户端/房东端共用）。支持 center+radius 或 bounds 模式。 */
     @Override
     public List<HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
@@ -250,9 +244,6 @@ public class HouseServiceImpl implements HouseService {
         return houseMapper.selectByLandlordMap(landlordId);
     }
 
-    // ==================== 内部方法 ====================
-
-    /** 校验房源所有权。 */
     private void validateOwnership(Long houseId) {
         House house = houseMapper.selectById(houseId);
         if (house == null) {
@@ -263,7 +254,6 @@ public class HouseServiceImpl implements HouseService {
         }
     }
 
-    /** DTO → House 实体。 */
     private House buildHouse(HouseCreateDTO dto, Long landlordId) {
         House h = new House();
         h.setLandlordId(landlordId);
@@ -291,7 +281,6 @@ public class HouseServiceImpl implements HouseService {
         return h;
     }
 
-    /** House 实体 → HouseVO。 */
     private HouseVO buildVO(House h, boolean isDetail) {
         HouseVO vo = new HouseVO();
         vo.setId(h.getId());
@@ -329,7 +318,6 @@ public class HouseServiceImpl implements HouseService {
         return vo;
     }
 
-    /** 批量保存图片。 */
     private void saveImages(Long houseId, List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) return;
         List<HouseImage> images = new ArrayList<>();
@@ -344,7 +332,6 @@ public class HouseServiceImpl implements HouseService {
         houseImageMapper.insertBatch(images);
     }
 
-    /** 批量保存标签。 */
     private void saveTags(Long houseId, List<String> tagNames) {
         if (tagNames == null || tagNames.isEmpty()) return;
         List<HouseTag> tags = tagNames.stream()

@@ -1,8 +1,6 @@
 package com.nest.constant;
 
-/**
- * 业务提示消息常量。
- */
+/** 业务提示消息常量。 */
 public final class MessageConstant {
 
     private MessageConstant() {}
@@ -37,7 +35,6 @@ public final class MessageConstant {
     public static final String MESSAGE_SEND_FAILED = "消息发送失败";
     public static final String MESSAGE_CONTENT_EMPTY = "消息内容不能为空";
 
-    // 合同相关
     public static final String CONTRACT_NOT_FOUND = "合同不存在";
     public static final String CONTRACT_STATUS_INVALID = "当前合同状态不允许此操作";
     public static final String INSPECTION_NOT_FOUND = "检测记录不存在";

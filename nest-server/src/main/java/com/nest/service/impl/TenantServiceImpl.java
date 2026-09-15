@@ -30,7 +30,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class TenantServiceImpl implements TenantService {
 
-    /** 头像在 bucket 内的目录前缀 */
     private static final String AVATAR_FOLDER = "avatar";
 
     private final TenantMapper tenantMapper;
@@ -57,7 +56,6 @@ public class TenantServiceImpl implements TenantService {
                     tenantMapper.insert(tenant);
                     log.info("微信新用户自动注册: id={}", tenant.getId());
                 } catch (DuplicateKeyException e) {
-                    // 并发首次登录：另一线程已插入相同 openid，回查继续登录
                     log.info("并发首次登录，回查已存在的租客");
                     tenant = tenantMapper.selectByOpenid(openid);
                     if (tenant == null) {
@@ -130,13 +128,7 @@ public class TenantServiceImpl implements TenantService {
         return toProfileVO(requireCurrentTenant());
     }
 
-    /**
-     * 更新租客个人信息。所有字段均可选，只更新「传了值」的字段。
-     *
-     * <p>⚠️ 手机号<b>只校验格式长度与唯一性</b>，不校验号码是否真实存在/是否本人。
-     * 短信验证码校验属于「上线并真正投入使用后」才启用的能力，与微信支付一样先预留：
-     * 届时在 {@code phone != null} 分支前加一步「校验短信验证码」即可，接口契约不变。
-     */
+    /** 更新租客个人信息：仅更新传了值的字段，手机号只校验格式与唯一性。 */
     @Override
     public void updateProfile(TenantProfileDTO dto) {
         Tenant tenant = requireCurrentTenant();
@@ -152,7 +144,6 @@ public class TenantServiceImpl implements TenantService {
         }
 
         if (phone != null) {
-            // 唯一性校验：不允许两个账号绑同一手机号，否则手机号登录会歧义
             Tenant exist = tenantMapper.selectByPhone(phone);
             if (exist != null && !exist.getId().equals(currentId)) {
                 throw new BusinessException(MessageConstant.PHONE_ALREADY_REGISTERED);
@@ -166,13 +157,11 @@ public class TenantServiceImpl implements TenantService {
                 .avatar(avatar)
                 .gender(dto.getGender())
                 .build();
-        // update 是动态 SQL 且必然带上 update_time = NOW()，影响行数为 0 只可能是「值没变化」，
-        // 不能据此判定失败（用户连续点保存就会命中），故这里不校验 rows。
         tenantMapper.update(updated);
         log.info("租客个人信息已更新: id={}, phone={}, nickname={}, gender={}", currentId, phone, nickname, dto.getGender());
     }
 
-    /** 上传头像到「头像专用 bucket」并直接写回租客资料，返回头像 URL（前端选完图即可生效）。 */
+    /** 上传头像到「头像专用 bucket」并直接写回租客资料，返回头像 URL。 */
     @Override
     public String uploadAvatar(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -180,7 +169,6 @@ public class TenantServiceImpl implements TenantService {
         }
         Tenant tenant = requireCurrentTenant();
 
-        // 按租客 ID 分目录，便于排查与清理
         String url = minioService.uploadAvatar(file, AVATAR_FOLDER + "/" + tenant.getId());
         tenantMapper.update(Tenant.builder().id(tenant.getId()).avatar(url).build());
 
@@ -188,7 +176,6 @@ public class TenantServiceImpl implements TenantService {
         return url;
     }
 
-    /** 取当前登录租客；未登录 / 账号不存在直接抛业务异常。 */
     private Tenant requireCurrentTenant() {
         Long currentId = BaseContext.getCurrentId();
         if (currentId == null) {
@@ -213,7 +200,6 @@ public class TenantServiceImpl implements TenantService {
                 .build();
     }
 
-    /** 空串 / 纯空白一律归一成 null，表示「该字段不修改」。 */
     private String trimToNull(String value) {
         if (value == null) {
             return null;
@@ -222,13 +208,10 @@ public class TenantServiceImpl implements TenantService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    /** 用微信 code 换取 openid。mock 模式返回伪造值（仅本地开发），否则调用微信 jscode2session。 */
     private String resolveOpenid(String code) {
         if (weChatProperties.isMockEnabled()) {
             String mockOpenid = weChatProperties.getMockOpenid();
             if (mockOpenid != null && !mockOpenid.isBlank()) {
-                // 固定 openid：uni.login 的 code 每次都是新的，按 code 派生会导致每次登录都变成新租客
-                // （历史消息"消失"、会话对不上），本地开发统一映射到同一个账号。
                 log.warn("微信登录 MOCK 模式：使用固定 openid={}，本次 code 已忽略", mockOpenid);
                 return mockOpenid;
             }

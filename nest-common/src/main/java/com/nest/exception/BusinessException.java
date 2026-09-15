@@ -1,8 +1,6 @@
 package com.nest.exception;
 
-/**
- * 业务异常基类，全局异常处理器统一捕获。
- */
+/** 业务异常基类，全局异常处理器统一捕获。 */
 public class BusinessException extends RuntimeException {
 
     private final Integer code;

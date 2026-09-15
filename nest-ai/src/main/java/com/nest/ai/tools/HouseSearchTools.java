@@ -24,6 +24,7 @@ public class HouseSearchTools {
     private final HouseService houseService;
 
     @Tool("搜索房源。城市放 city（如'湛江市'），区域放 district（如'霞山区'），keyword 只放小区名/地址/标题关键词（如'银帆花园'）。不要把区域名、城市名或整句话塞进 keyword")
+    /** 搜索房源；无结果时分级放宽，先丢 keyword（只在 title/description 上 LIKE）。 */
     public String searchHouses(
             @P("关键词：只放小区名/地址/标题词，如'银帆花园'、'国贸'；不知道就不传，不要传区域名、城市名或整句话")
             String keyword,
@@ -47,10 +48,6 @@ public class HouseSearchTools {
                 buildQuery(keyword, city, district, minPrice, maxPrice, rentType, roomCount, size));
         String relaxed = "无";
 
-        // 分级放宽（按"误伤概率"从高到低放开）。
-        // ⚠️ 原实现只丢 city/district 却保留 keyword —— 而 keyword 只在 title/description 上 LIKE，
-        // 一旦模型把地名/整句塞进 keyword（如 keyword='霞山区'、'湛江市内二居室'），
-        // 两轮都会查空、永远救不回来。所以第一级必须先把 keyword 丢掉。
         if (isEmpty(result) && notBlank(keyword)) {
             result = houseService.list(
                     buildQuery(null, city, district, minPrice, maxPrice, rentType, roomCount, size));
@@ -70,7 +67,6 @@ public class HouseSearchTools {
         return formatHouses(result.getRecords());
     }
 
-    /** 组装查询条件（空串统一转 null，避免空串参与过滤）。 */
     private HouseQueryDTO buildQuery(String keyword, String city, String district,
                                      Double minPrice, Double maxPrice, String rentType,
                                      Integer roomCount, int pageSize) {

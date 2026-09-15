@@ -9,9 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 退租申请 / 结算 Mapper。
- */
+/** 退租申请 / 结算 Mapper。 */
 @Mapper
 public interface RentTerminationMapper {
 
@@ -22,10 +20,7 @@ public interface RentTerminationMapper {
     /** 某订单的退租记录（一单一退） */
     RentTermination selectByOrderId(@Param("orderId") Long orderId);
 
-    /**
-     * 标记押金已退回。带 {@code refund_status = 0} 条件：并发/重复调用时只有一次能成功，
-     * 返回 0 表示已被处理过（退款任务据此防止双倍退款）。
-     */
+    /** 标记押金已退回。带  条件：并发/重复调用时只有一次能成功， */
     int markRefunded(@Param("id") Long id,
                      @Param("deductAmount") BigDecimal deductAmount,
                      @Param("refundAmount") BigDecimal refundAmount,
@@ -33,10 +28,7 @@ public interface RentTerminationMapper {
                      @Param("refundTxnId") Long refundTxnId,
                      @Param("remark") String remark);
 
-    /**
-     * 待自动结算的退租记录：仍未退款，且「已购租期末周期」的月末 + 宽限期已过
-     * （房东超期未操作 ⇒ 由定时任务按全额退还，不扣款）。
-     */
+    /** 待自动结算的退租记录：仍未退款，且「已购租期末周期」的月末 + 宽限期已过 */
     List<RentTermination> selectAutoRefundDue(@Param("today") LocalDate today,
                                              @Param("graceDays") int graceDays);
 }

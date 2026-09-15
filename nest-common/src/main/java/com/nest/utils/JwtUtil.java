@@ -15,7 +15,6 @@ public final class JwtUtil {
 
     private JwtUtil() {}
 
-    /** 密钥字符串 → 256 位 SecretKey。 */
     private static SecretKey toSecretKey(String secret) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -26,7 +25,6 @@ public final class JwtUtil {
         }
     }
 
-    /** 生成 JWT Token。 */
     public static String createToken(String secret, long ttlMillis, Map<String, Object> claims) {
         SecretKey key = toSecretKey(secret);
         long now = System.currentTimeMillis();
@@ -38,7 +36,6 @@ public final class JwtUtil {
                 .compact();
     }
 
-    /** 解析 Token，返回 Claims。签名错误或过期会抛异常。 */
     public static Claims parseToken(String secret, String token) {
         SecretKey key = toSecretKey(secret);
         return Jwts.parser()
@@ -48,7 +45,6 @@ public final class JwtUtil {
                 .getPayload();
     }
 
-    /** 校验 Token 是否有效。 */
     public static boolean validate(String secret, String token) {
         try {
             parseToken(secret, token);

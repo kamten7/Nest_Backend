@@ -7,14 +7,10 @@ import com.nest.vo.WalletVO;
 
 import java.math.BigDecimal;
 
-/**
- * 钱包服务。
- */
+/** 钱包服务。 */
 public interface WalletService {
 
-    /**
-     * 按 (userType,userId) 查询钱包，不存在则懒创建。
-     */
+    /** 按 (userType,userId) 查询钱包，不存在则懒创建。 */
     Wallet getByUser(String userType, Long userId);
 
     /** 查询我的钱包（余额视图）。 */
@@ -30,9 +26,7 @@ public interface WalletService {
     PageResult<WalletTransactionVO> listTransactions(String userType, Long userId,
                                                      String bizType, Integer page, Integer pageSize);
 
-    /**
-     * 钱包间转账（双向记账）：扣付款方、入收款方，两笔流水
-     */
+    /** 钱包间转账（双向记账）：扣付款方、入收款方，两笔流水 */
     Long[] transferPay(String payerType, Long payerId, String payeeType, Long payeeId,
                        BigDecimal amount, String bizTypePay, String bizTypeIncome, String bizNo);
 }

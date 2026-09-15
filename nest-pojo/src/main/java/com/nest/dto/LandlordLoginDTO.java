@@ -4,9 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
-/**
- * 房东登录请求体。
- */
+/** 房东登录请求体 */
 @Data
 public class LandlordLoginDTO {
 

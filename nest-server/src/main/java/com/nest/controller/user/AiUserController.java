@@ -24,10 +24,7 @@ public class AiUserController {
 
     private final AiUserService aiUserService;
 
-    /**
-     * 流式 AI 找房对话。
-     * 返回 SSE（text/event-stream），每段文字一个 data: 事件，结束发 [DONE]。
-     */
+    /** 流式 AI 找房对话（SSE 长连接返回）。 */
     @PostMapping(value = "/chat/stream", produces = "text/event-stream")
     @Operation(summary = "AI 流式找房", description = "租客输入自然语言，AI 通过工具查真实房源并逐字返回")
     public void streamChat(@RequestBody(required = false) Map<String, String> body,
@@ -35,9 +32,8 @@ public class AiUserController {
                            HttpServletResponse response) {
         String message = body != null ? body.get("message") : null;
 
-        // 开启异步处理（SSE 长连接需要，不能占用 Servlet 线程）
         AsyncContext asyncContext = request.startAsync();
-        asyncContext.setTimeout(120000); // 2 分钟超时
+        asyncContext.setTimeout(120000);
 
         aiUserService.streamChat(message, asyncContext);
     }

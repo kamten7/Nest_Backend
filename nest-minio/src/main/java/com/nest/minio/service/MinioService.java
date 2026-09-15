@@ -25,23 +25,18 @@ public class MinioService {
     @Value("${nest.minio.endpoint}")
     private String endpoint;
 
-    /** 通用文件 bucket（房源图片等） */
     @Value("${nest.minio.bucket}")
     private String bucket;
 
-    /** 用户头像专用 bucket */
     @Value("${nest.minio.avatar-bucket}")
     private String avatarBucket;
 
-    /** 已确认存在的 bucket 缓存，避免每次上传都多问 MinIO 一次 */
     private final Set<String> ensuredBuckets = ConcurrentHashMap.newKeySet();
 
-    /** 上传文件到通用 bucket，返回可访问的完整 URL。 */
     public String upload(MultipartFile file, String folder) {
         return doUpload(file, folder, bucket);
     }
 
-    /** 上传用户头像到「头像专用 bucket」，返回可访问的完整 URL。 */
     public String uploadAvatar(MultipartFile file, String folder) {
         return doUpload(file, folder, avatarBucket);
     }
@@ -68,11 +63,6 @@ public class MinioService {
         return url;
     }
 
-    /**
-     * 确保 bucket 存在，不存在则自动创建。
-     *
-     * <p>不依赖 docker-compose 的 minio-init 一次性脚本 —— 新环境 clone 下来只要配置正确就能直接上传。
-     */
     private void ensureBucket(String targetBucket) throws Exception {
         if (targetBucket == null || targetBucket.isBlank() || ensuredBuckets.contains(targetBucket)) {
             return;

@@ -10,15 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * 押金自动退还任务。
- *
- * <p>针对「退租申请中、已购租期结束且房东超过 7 天未结算」的订单：押金由房东钱包全额退回租客钱包，
- * 避免房东长期不操作导致租客拿不回押金。
- *
- * <p>逐条调用 {@link RentOrderService#autoRefundOne(Long)}（各自独立事务），
- * 单条失败不影响其它记录；退款落库带 {@code refund_status=0} 条件，重复执行不会双倍退款。
- */
+/** 押金自动退还任务。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor

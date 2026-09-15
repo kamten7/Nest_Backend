@@ -22,9 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 租客端租房订单接口（URL 与 miniapp/api/rent.js 逐一对齐）。
- */
+/** 租客端租房订单接口（URL 与 miniapp/api/rent.js 逐一对齐）。 */
 @Slf4j
 @RestController
 @RequestMapping("/user/rent")

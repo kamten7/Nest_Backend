@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "nest.websocket")
 public class ChatProperties {
 
-    /** 传输层实现：jsr356 | netty。 */
     private String implementation = "jsr356";
 
     private Netty netty = new Netty();

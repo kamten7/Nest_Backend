@@ -12,11 +12,8 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class Result<T> implements Serializable {
 
-    /** 状态码：1 成功，0 失败 */
     private Integer code;
-    /** 提示信息 */
     private String msg;
-    /** 响应数据 */
     private T data;
 
     public static <T> Result<T> success() {
@@ -31,7 +28,6 @@ public class Result<T> implements Serializable {
         return new Result<>(1, msg, data);
     }
 
-    /** 无数据成功响应，仅带自定义消息。 */
     public static Result<Void> successMsg(String msg) {
         return new Result<>(1, msg, null);
     }

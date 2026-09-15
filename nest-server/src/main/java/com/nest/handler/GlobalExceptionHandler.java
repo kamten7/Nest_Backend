@@ -11,9 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * 全局异常处理器，统一返回 Result 格式。
- */
+/** 全局异常处理器，统一返回 Result 格式。 */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -36,9 +34,7 @@ public class GlobalExceptionHandler {
         return Result.error(e.getCode(), e.getMessage());
     }
 
-    /**
-     * 参数校验失败
-     */
+    /** 参数校验失败。 */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<Void> handleValidation(MethodArgumentNotValidException e) {
         String msg = e.getBindingResult().getAllErrors().stream()

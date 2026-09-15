@@ -6,9 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-/**
- * 租房支付记录 Mapper。
- */
+/** 租房支付记录 Mapper。 */
 @Mapper
 public interface RentPaymentMapper {
 

@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 房东端租房订单接口（URL 与 frontend/src/api/rent.ts 对齐）。
- */
+/** 房东端租房订单接口（URL 与 frontend/src/api/rent.ts 对齐）。 */
 @Slf4j
 @RestController
 @RequestMapping("/admin/rent")
@@ -45,9 +43,7 @@ public class RentOrderAdminController {
         return Result.success(rentOrderService.getDetailByLandlord(BaseContext.getCurrentId(), orderId));
     }
 
-    /**
-     * 退租结算：把押金结清并退回租客。请求体可省略（等价于不扣款、全额退回）。
-     */
+    /** 退租结算：把押金结清并退回租客。请求体可省略（等价于不扣款、全额退回）。 */
     @PostMapping("/{orderId}/refund")
     @Operation(summary = "退回押金", description = "退租申请中且已购租期结束；可带扣款金额，不传=全额退回")
     public Result<RentOrderVO> refund(@PathVariable Long orderId,

@@ -43,7 +43,7 @@ public class NestAiAgent {
         TokenStream chat(@MemoryId Long tenantId, @V("userMessage") String userMessage);
     }
 
-    /** 创建租客端 AI 助手 Bean。 */
+    /** 创建租客端 AI 助手 Bean，按 tenantId 隔离会话记忆。 */
     @Bean
     public TenantAiAssistant tenantAiAssistant(
             @Qualifier("userStreamingChatModel") OpenAiStreamingChatModel streamingChatModel,
@@ -51,16 +51,13 @@ public class NestAiAgent {
             ChatMemoryStore chatMemoryStore) {
         return AiServices.builder(TenantAiAssistant.class)
                 .streamingChatModel(streamingChatModel)
-                // 按 @MemoryId（tenantId）隔离对话记忆：LangChain4j 内部用
-                // ConcurrentHashMap.computeIfAbsent 缓存，同一个 memoryId 只会调用一次本 provider。
-                // 用单例 chatMemory() 会让所有租客共用同一段上下文，造成跨用户串号/隐私泄露。
                 .chatMemoryProvider(memoryId -> MessageWindowChatMemory.builder()
-                        .id(memoryId)//id绑定memoryId，确保隔离
+                        .id(memoryId)
                         .maxMessages(20)
                         .chatMemoryStore(chatMemoryStore)
                         .build()
                 )
-                .tools(houseSearchTools)//添加工具
+                .tools(houseSearchTools)
                 .build();
     }
 }

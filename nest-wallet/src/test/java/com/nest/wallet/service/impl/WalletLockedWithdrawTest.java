@@ -29,21 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 押金锁定与提现额度单元测试。
- *
- * <p>规则（用户约定）：押金收到后留在房东钱包内（余额可见），但在租期内不可提现。
- * 所以「可提现余额 = 余额 − 在租订单押金总额」，提现只能作用在可提现余额上。
- *
- * <p>覆盖点：
- * <ul>
- *   <li>查钱包时能同时看到锁定金额与可提现余额</li>
- *   <li>提现在可提现余额内 → 走带锁定条件的原子扣款</li>
- *   <li>余额够但被押金占用 → 明确报「押金不可提现」而不是「余额不足」</li>
- *   <li>没有实现方（未引入 nest-order）→ 锁定恒为 0，行为与改造前一致</li>
- *   <li>租客不受锁定影响</li>
- * </ul>
- */
+/** 押金锁定与提现额度单元测试。 */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("钱包押金锁定单元测试")
 class WalletLockedWithdrawTest {
@@ -67,11 +53,9 @@ class WalletLockedWithdrawTest {
 
     @BeforeEach
     void injectOptionalProvider() {
-        // 生产环境由 Spring 属性注入（required=false），这里单测手动塞进去
         walletService.lockedAmountProvider = lockedAmountProvider;
     }
 
-    // ==================== 测试数据构造 ====================
 
     private Wallet wallet(String userType, String balance) {
         return Wallet.builder()
@@ -88,12 +72,10 @@ class WalletLockedWithdrawTest {
     }
 
     private void givenLocked(String userType, String locked) {
-        // 用 thenAnswer 而不是 thenReturn：Mockito 的 thenReturn(null) 会因重载解析报错
         BigDecimal value = locked == null ? null : new BigDecimal(locked);
         when(lockedAmountProvider.lockedAmountOf(userType, USER_ID)).thenAnswer(invocation -> value);
     }
 
-    // ==================== 1. 钱包视图 ====================
 
     @Test
     @DisplayName("查钱包：余额含押金，同时给出锁定金额与可提现余额")
@@ -132,7 +114,6 @@ class WalletLockedWithdrawTest {
         assertThat(vo.getAvailableBalance()).isEqualByComparingTo("100.00");
     }
 
-    // ==================== 2. 提现：有锁定 ====================
 
     @Test
     @DisplayName("提现：金额在可提现余额内 → 用带锁定条件的原子扣款并落处理中流水")
@@ -176,7 +157,6 @@ class WalletLockedWithdrawTest {
     void withdraw_exceedsAvailableButWithinBalance_throwsLockedMessage() {
         givenWallet(LANDLORD, "8000.00");
         givenLocked(LANDLORD, "3000.00");
-        // 余额 8000 够 5000，但扣掉 3000 押金后只剩 5000 可提… 提 6000 时锁定条件不满足
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("6000.00"), new BigDecimal("3000.00")))
                 .thenReturn(0);
 
@@ -197,12 +177,10 @@ class WalletLockedWithdrawTest {
 
         walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"));
 
-        // 只走一次原子 UPDATE（含锁定条件），没有走普通扣款
         verify(walletMapper).decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1.00"), new BigDecimal("3000.00"));
         verify(walletMapper, never()).decreaseBalance(any(), any());
     }
 
-    // ==================== 3. 提现：无锁定 / 锁定为 0 ====================
 
     @Test
     @DisplayName("提现：锁定额为 0（如租客）→ 走原有扣款 SQL，不受押金逻辑影响")
@@ -243,7 +221,6 @@ class WalletLockedWithdrawTest {
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
     }
 
-    // ==================== 4. 其它接口不受影响 ====================
 
     @Test
     @DisplayName("充值：不查询锁定额，余额正常累加（锁定只作用于提现）")

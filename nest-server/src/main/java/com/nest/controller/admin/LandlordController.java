@@ -14,10 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 房东端认证接口。
- * 包含登录、获取当前登录房东信息等操作。
- */
+/** 房东端认证接口（登录/当前房东信息）。 */
 @Slf4j
 @RestController
 @RequestMapping("/admin/landlord")
@@ -50,7 +47,6 @@ public class LandlordController {
         if (landlord == null) {
             return Result.error("房东不存在");
         }
-        // 脱敏：不返回密码
         landlord.setPassword(null);
         return Result.success(landlord);
     }

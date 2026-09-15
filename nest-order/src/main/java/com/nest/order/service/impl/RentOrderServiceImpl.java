@@ -49,18 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-/**
- * 租房订单服务实现。
- *
- * <p>资金规则（押金）：
- * <ul>
- *   <li>缴押金：租客钱包 → 房东钱包，押金<b>留在房东钱包内但不可提现</b>；</li>
- *   <li>房东可提现额度 = 房东余额 − Σ(在租订单押金)，由
- *       {@link com.nest.wallet.service.LockedAmountProvider} 注入钱包模块执行；</li>
- *   <li>退租结算：房东可扣款（物品损坏），扣款部分原地归房东变为可提现，
- *       剩余部分由房东钱包退回租客钱包。</li>
- * </ul>
- */
+/** 租房订单服务实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -79,14 +68,10 @@ public class RentOrderServiceImpl implements RentOrderService {
     private final WalletService walletService;
     private final PushService pushService;
 
-    // ==================== 租客端 ====================
 
     @Override
     @Transactional
     public RentOrderVO confirmRent(Long tenantId, Long appointmentId) {
-        // 前置条件：租房必须已绑定手机号（房东需据此联系租客）。
-        // ⚠️ 当前只判断「有没有绑」，不校验号码是否真实/是否本人 —— 短信验证码校验属
-        // 「上线并投入使用后」才启用的能力，与微信支付一样先预留（届时在此处插入验证码校验即可）。
         String phone = rentSourceMapper.selectTenantPhone(tenantId);
         if (phone == null || phone.isBlank()) {
             throw new BusinessException(MessageConstant.RENT_PHONE_REQUIRED);
@@ -102,7 +87,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (src.getAppointmentStatus() == null || src.getAppointmentStatus() != AppointmentStatus.VISITED) {
             throw new BusinessException(MessageConstant.RENT_APPOINTMENT_NOT_VISITED);
         }
-        // 防重复：同一预约只能生成一个有效订单（仅靠预约状态置已成交不够，这里再兜一道）
         RentOrder existed = rentOrderMapper.selectByAppointmentId(appointmentId);
         if (existed != null && existed.getStatus() != RentOrderStatus.CANCELLED) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
@@ -112,7 +96,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (monthlyRent == null || monthlyRent.signum() <= 0) {
             throw new BusinessException(MessageConstant.RENT_HOUSE_PRICE_INVALID);
         }
-        // 押金缺省按「押一」处理：房源没填押金时取一个月租金
         BigDecimal deposit = (src.getHouseDeposit() != null && src.getHouseDeposit().signum() > 0)
                 ? src.getHouseDeposit()
                 : monthlyRent;
@@ -122,7 +105,6 @@ public class RentOrderServiceImpl implements RentOrderService {
                 .appointmentId(appointmentId)
                 .tenantId(tenantId)
                 .houseId(src.getHouseId())
-                // 房东 ID 一律以库中房源为准，不信任前端
                 .landlordId(src.getHouseLandlordId())
                 .deposit(deposit)
                 .monthlyRent(monthlyRent)
@@ -168,7 +150,6 @@ public class RentOrderServiceImpl implements RentOrderService {
                 .landlordTxnId(txnIds[1])
                 .build());
 
-        // 起租日 = 缴押金当天；首个待缴周期 = 起租月（首月租金走正常缴租流程）
         LocalDate startDate = LocalDate.now();
         String nextDuePeriod = startDate.format(PERIOD_FORMATTER);
         int rows = rentOrderMapper.activateAfterDeposit(orderId, startDate, nextDuePeriod);
@@ -244,7 +225,6 @@ public class RentOrderServiceImpl implements RentOrderService {
 
         BigDecimal monthlyRent = nullToZero(order.getMonthlyRent());
         BigDecimal total = monthlyRent.multiply(BigDecimal.valueOf(n));
-        // 一次扣款、N 条记录共享同一批次号
         String bizNo = payMonth(order, first, total, n, monthlyRent);
 
         int rows = rentOrderMapper.advanceAfterRentPaid(orderId, shiftPeriod(first, n), n);
@@ -263,8 +243,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         RentOrder order = requireOwnedOrder(tenantId, orderId);
         requireRenting(order);
 
-        // 「已购租期的末周期」= 待缴周期的上一个周期。若一期租金都没缴，则已购租期为空，
-        // 押金会被立刻退掉而租客仍欠租 —— 因此要求至少缴过 1 期。
         int paidMonths = order.getPaidMonths() == null ? 0 : order.getPaidMonths();
         if (paidMonths < 1) {
             throw new BusinessException("请先缴纳当期租金后再申请退租");
@@ -295,7 +273,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         return reloadAndDetail(orderId);
     }
 
-    // ==================== 房东端 ====================
 
     @Override
     public PageResult<RentOrderVO> listByLandlord(Long landlordId, Integer status, Integer page, Integer pageSize) {
@@ -336,7 +313,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (termination == null || termination.getRefundStatus() == null || termination.getRefundStatus() != 0) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
-        // 已购租期必须已结束：租客还在住的时候不能结算
         LocalDate periodEnd = lastDayOfPeriod(termination.getEffectiveEndPeriod());
         if (!LocalDate.now().isAfter(periodEnd)) {
             throw new BusinessException(MessageConstant.RENT_SETTLE_NOT_DUE);
@@ -358,7 +334,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         return reloadAndDetail(orderId);
     }
 
-    // ==================== 定时任务支撑 ====================
 
     @Override
     public int remindDueOrders(LocalDate today) {
@@ -389,7 +364,6 @@ public class RentOrderServiceImpl implements RentOrderService {
                                 + " 元待缴，请及时缴纳。");
                 pushed++;
             } catch (Exception e) {
-                // 推送失败只记日志，不影响已写入的去重记录与其它订单
                 log.warn("房租提醒推送失败: orderId={}, reason={}", order.getId(), e.getMessage());
             }
         }
@@ -422,7 +396,6 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (order == null || order.getStatus() != RentOrderStatus.TERMINATING) {
             return false;
         }
-        // 房东超期未操作 ⇒ 全额退还，不扣款
         BigDecimal deposit = nullToZero(order.getDeposit());
         doRefund(order, termination, ZERO, deposit, "房东超期未结算，系统自动全额退回押金");
         log.info("退租结算完成(系统自动): orderId={}, terminationId={}, refund={}",
@@ -439,13 +412,8 @@ public class RentOrderServiceImpl implements RentOrderService {
         return locked == null ? ZERO : locked;
     }
 
-    // ==================== 内部方法 ====================
 
-    /**
-     * 执行押金退回：房东钱包 → 租客钱包，并标记退租记录、订单置「已退租」。
-     *
-     * <p>金额为 0 时<b>跳过钱包转账</b>（全额扣款场景）——{@code transferPay} 要求金额严格大于 0。
-     */
+    /** 执行押金退回：房东钱包 → 租客钱包，并标记退租记录、订单置「已退租」。 */
     private void doRefund(RentOrder order, RentTermination termination,
                           BigDecimal deduct, BigDecimal refund, String remark) {
         Long refundTxnId = null;
@@ -456,13 +424,11 @@ public class RentOrderServiceImpl implements RentOrderService {
                     JwtConstant.TYPE_TENANT, order.getTenantId(),
                     refund,
                     WalletConstant.BIZ_DEPOSIT_REFUND, WalletConstant.BIZ_DEPOSIT_REFUND, bizNo);
-            // ids[1] = 租客侧收入流水
             refundTxnId = txnIds[1];
         }
         int rows = rentTerminationMapper.markRefunded(termination.getId(), deduct, refund,
                 LocalDateTime.now(), refundTxnId, remark);
         if (rows == 0) {
-            // 已被其它请求结算（并发/任务重跑）
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
         int orderRows = rentOrderMapper.toTerminated(order.getId());
@@ -471,13 +437,7 @@ public class RentOrderServiceImpl implements RentOrderService {
         }
     }
 
-    /**
-     * 租金扣款 + 落缴费记录。
-     *
-     * @param records   要生成的缴费记录条数（提前支付 N 期时为 N）
-     * @param total     本次实际扣款总额
-     * @param perMonth  单期金额（records > 1 时用于拆分记录）
-     */
+    /** 租金扣款 + 落缴费记录。 */
     private String payMonth(RentOrder order, String firstPeriod, BigDecimal total, int records, BigDecimal perMonth) {
         assertBalanceEnough(order.getTenantId(), total);
 

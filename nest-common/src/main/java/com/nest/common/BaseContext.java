@@ -1,11 +1,8 @@
 package com.nest.common;
 
-/**
- * ThreadLocal 用户上下文，JWT 拦截器解析后注入。
- */
+/** ThreadLocal 用户上下文，保存当前登录用户的 ID 与类型。 */
 public class BaseContext {
 
-    // BaseContext 类加载时就创建了两个 ThreadLocal 对象，放在静态区
     private static final ThreadLocal<Long> CURRENT_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> CURRENT_TYPE = new ThreadLocal<>();
 

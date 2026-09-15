@@ -47,7 +47,7 @@ public class ChatServiceImpl implements ChatService {
 
     /** 发送聊天消息：校验→找/建会话→落库→更新会话 → netty推送。 */
     @Override
-    @Transactional// 事务管理
+    @Transactional
     public Long send(String fromType, Long fromId, String toType, Long toId,
                      String content, String msgType, String clientMsgId) {
         if (content == null || content.isBlank()) {
@@ -75,15 +75,13 @@ public class ChatServiceImpl implements ChatService {
                 .build();
         messageMapper.insert(message);
 
-        // 更新会话的最后消息内容和时间
         conversationMapper.updateLastMessage(conversation.getId(),
                 content.length() > 50 ? content.substring(0, 50) : content,
                 LocalDateTime.now());
 
         MessageVO vo = buildMessageVO(message, fromType, fromId, false);
 
-        // 先落库、后推送：推送注册到事务提交之后执行。
-        // 放在事务里推的话，一旦本次事务回滚，对方会看到数据库里并不存在的消息。
+        /** 先落库、后推送：推送延到事务提交后执行，避免回滚致对方看到不存在的消息。 */
         Long conversationId = conversation.getId();
         Long messageId = message.getId();
         registerAfterCommitPush(() -> pushService.pushChat(toType, toId, conversationId, messageId,
@@ -129,32 +127,27 @@ public class ChatServiceImpl implements ChatService {
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
-    /** 获取会话历史消息（分页），先做成员归属校验，再标记已读并推送已读回执。 */
+    /** 历史消息分页：先校验成员归属，再标记已读并推回执；startPage 须紧贴分页查询。 */
     @Override
     public PageResult<MessageVO> getMessages(Long conversationId, String userType, Long userId,
                                              Integer page, Integer pageSize) {
-        // 1. 归属校验：当前用户必须是会话成员；不是成员一律按"不存在"处理，不暴露会话是否真的存在
         Conversation conversation = conversationMapper.selectByIdAndMember(conversationId, userType, userId);
         if (conversation == null) {
             throw new BusinessException(MessageConstant.CONVERSATION_NOT_FOUND);
         }
 
-        // 2. 分页拉消息（注意：startPage 必须紧贴它要分页的那条查询，中间不能再插别的 Mapper 调用）
         PageHelper.startPage(page, pageSize);
         List<Message> messages = messageMapper.selectByConversation(conversationId);
         PageInfo<Message> pageInfo = new PageInfo<>(messages);
 
-        // 3. 批量置已读（仅对方发的）+ 回推已读回执给对方
         messageMapper.updateReadByConversation(conversationId, userType, userId);
         for (Message m : messages) {
             if (!m.getSenderType().equals(userType) || !m.getSenderId().equals(userId)) {
                 m.setIsRead(1);
             }
         }
-        // 标记已读并推送已读回执给对方
-        notifyPeerRead(conversation, userType, userId);   // 直接复用第 1 步查出的会话，省一次 selectById
+        notifyPeerRead(conversation, userType, userId);
 
-        // 4. 组装 VO（发送者昵称批量预加载，避免逐条查询的 N+1）
         Map<String, String> senderNames = loadSenderNames(messages);
         List<MessageVO> vos = new ArrayList<>();
         for (Message m : messages) {
@@ -203,11 +196,9 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         messageMapper.updateReadUpTo(conversationId, readerType, readerId, upToMsgId);
-        // 同样先存后发：已读回执也等事务提交后再推
         registerAfterCommitPush(() -> notifyPeerRead(conversation, readerType, readerId));
     }
 
-    /** 向消息发送方推送已读事件。 */
     private void notifyPeerRead(Conversation conversation, String viewerType, Long viewerId) {
         String peerType;
         Long peerId;
@@ -232,7 +223,6 @@ public class ChatServiceImpl implements ChatService {
                 conversation.getId(), viewerType, viewerId, peerType, peerId, lastReadMsgId);
     }
 
-    /** 填充对方昵称/头像。 */
     private void fillOtherInfo(ConversationVO vo) {
         if ("landlord".equals(vo.getOtherType())) {
             Landlord landlord = landlordMapper.selectById(vo.getOtherId());
@@ -249,17 +239,10 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    /** 构建消息 VO（单条场景：发送者昵称直接查库）。 */
     private MessageVO buildMessageVO(Message m, String viewerType, Long viewerId, boolean includeMine) {
         return buildMessageVO(m, viewerType, viewerId, includeMine, null);
     }
 
-    /**
-     * 构建消息 VO。
-     *
-     * @param senderNames 发送者昵称缓存，key = {@code userType + ":" + userId}；
-     *                    传入时不再逐条查库（列表场景消除 N+1），为 {@code null} 时回退单条查询。
-     */
     private MessageVO buildMessageVO(Message m, String viewerType, Long viewerId, boolean includeMine,
                                      Map<String, String> senderNames) {
         MessageVO vo = new MessageVO();
@@ -278,7 +261,6 @@ public class ChatServiceImpl implements ChatService {
         return vo;
     }
 
-    /** 取发送者昵称：优先命中缓存，未命中再回退单条查询。 */
     private String resolveSenderName(Message m, Map<String, String> senderNames) {
         if (senderNames != null) {
             String cached = senderNames.get(senderKey(m.getSenderType(), m.getSenderId()));
@@ -294,11 +276,7 @@ public class ChatServiceImpl implements ChatService {
         return tenant != null && tenant.getNickname() != null ? tenant.getNickname() : "租客";
     }
 
-    /**
-     * 批量预加载一批消息的发送者昵称，消除逐条查库的 N+1（一页消息最多 2 次 SQL）。
-     * <p>key 带上 userType 前缀 —— 否则 tenant 5 与 landlord 5 会互相覆盖。
-     * <p>所有请求到的 ID 都会写入缓存（查不到则填默认昵称），保证调用方不再回退查库。
-     */
+    /** 批量预加载发送者昵称消除 N+1；key 带 userType 前缀避免 tenant/landlord ID 撞车。 */
     private Map<String, String> loadSenderNames(List<Message> messages) {
         Set<Long> tenantIds = new HashSet<>();
         Set<Long> landlordIds = new HashSet<>();
@@ -330,19 +308,13 @@ public class ChatServiceImpl implements ChatService {
         return names;
     }
 
-    /** 昵称缓存的 key，避免 tenant / landlord 的 ID 撞车。 */
     private static String senderKey(String userType, Long userId) {
         return userType + ":" + userId;
     }
 
-    /**
-     * 把推送任务挂到当前事务的 afterCommit 上 —— "先存后发"。
-     * <p>在事务内推送的话，一旦后续操作失败回滚，对方会看到数据库里并不存在的消息，双方状态永久不一致。
-     * <p>推送只是"尽力而为的通知"，落库才是唯一事实来源，因此推送失败绝不能影响已提交的数据。
-     */
+    /** 推送挂到事务提交后：先存后发，推送失败不影响已提交数据。 */
     private void registerAfterCommitPush(Runnable task) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            // 无事务时（理论上不会走到）直接执行
             safePush(task);
             return;
         }
@@ -354,7 +326,6 @@ public class ChatServiceImpl implements ChatService {
         });
     }
 
-    /** 执行推送并吞掉异常：数据已落库，推送失败只记日志。 */
     private void safePush(Runnable task) {
         try {
             task.run();

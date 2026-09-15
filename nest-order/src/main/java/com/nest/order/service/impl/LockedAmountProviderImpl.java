@@ -10,16 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
-/**
- * 押金锁定金额提供方实现。
- *
- * <p>规则：房东钱包余额里包含租客已缴的押金，但在租期内（{@link RentOrderStatus#RENTING}
- * 与 {@link RentOrderStatus#TERMINATING}）这部分钱不可提现。只有在退租结算完成后，
- * 订单转入「已退租」，押金才从锁定额里消失——此时被房东扣下的赔偿部分归房东、
- * 扣除部分已在钱包内变为可提现，退回租客的部分也已实际转出。
- *
- * <p>只对房东生效；租客侧无锁定（返回 0）。
- */
+/** 押金锁定金额提供方实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor

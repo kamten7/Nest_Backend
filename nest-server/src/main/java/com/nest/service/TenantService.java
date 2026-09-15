@@ -7,9 +7,7 @@ import com.nest.vo.TenantLoginVO;
 import com.nest.vo.TenantProfileVO;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * 租客服务接口。
- */
+/** 租客服务接口 */
 public interface TenantService {
 
     /** 租客登录（支持微信 code 和手机号两种方式） */

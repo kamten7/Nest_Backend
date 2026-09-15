@@ -1,8 +1,6 @@
 package com.nest.chat.core;
 
-/**
- * 入站消息回调。由业务侧（nest-server）实现，聊天模块只负责收发与路由。
- */
+/** 入站消息回调。由业务侧（nest-server）实现，聊天模块只负责收发与路由。 */
 public interface MessageListener {
 
     /** 收到聊天消息：落库并返回消息 ID。 */

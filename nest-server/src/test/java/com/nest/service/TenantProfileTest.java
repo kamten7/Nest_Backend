@@ -30,12 +30,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 租客个人信息（查询 / 更新 / 头像上传）服务单元测试。
- *
- * <p>语义要点：所有资料字段都是可选的，只更新「传了值」的字段；
- * 手机号只校验格式与唯一性，不校验真实性（短信验证为后续上线项）。
- */
+/** 租客个人信息（查询/更新/头像）服务单元测试（字段可选，只更新传值字段）。 */
 @ExtendWith(MockitoExtension.class)
 class TenantProfileTest {
 
@@ -72,8 +67,6 @@ class TenantProfileTest {
     private Tenant tenant(long id, String phone) {
         return Tenant.builder().id(id).phone(phone).build();
     }
-
-    // ==================== 更新个人信息 ====================
 
     @Test
     @DisplayName("手机号无冲突时正常更新个人信息")
@@ -170,8 +163,6 @@ class TenantProfileTest {
                 .hasMessage(MessageConstant.ACCOUNT_NOT_FOUND);
     }
 
-    // ==================== 查询个人信息 ====================
-
     @Test
     @DisplayName("已绑定手机号时 phoneBound 为 true")
     void getProfile_phoneBoundTrue_whenPhonePresent() {
@@ -206,8 +197,6 @@ class TenantProfileTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.NOT_LOGIN);
     }
-
-    // ==================== 头像上传 ====================
 
     @Test
     @DisplayName("上传头像：走头像专用 bucket、按租客分目录，并写回 avatar 字段")

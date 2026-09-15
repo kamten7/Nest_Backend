@@ -20,7 +20,6 @@ public class AiModelConfig {
     @Value("${nest.ai.admin.model-name}")
     private String adminModelName;
 
-    /** 房东端流式聊天模型 —— temperature=0.1，确保数据查询结果确定性。 */
     @Bean
     public OpenAiStreamingChatModel adminStreamingChatModel() {
         return OpenAiStreamingChatModel.builder()
@@ -41,7 +40,6 @@ public class AiModelConfig {
     @Value("${nest.ai.user.model-name}")
     private String userModelName;
 
-    /** 租客端流式聊天模型 —— temperature=0.7，支持自然对话。 */
     @Bean
     public OpenAiStreamingChatModel userStreamingChatModel() {
         return OpenAiStreamingChatModel.builder()
