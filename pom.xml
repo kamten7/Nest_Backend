@@ -22,6 +22,7 @@
         <module>nest-ai</module>
         <module>nest-minio</module>
         <module>nest-chat</module>
+        <module>nest-wallet</module>
         <module>nest-server</module>
     </modules>
 
@@ -68,6 +69,11 @@
             <dependency>
                 <groupId>com.nest</groupId>
                 <artifactId>nest-chat</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nest</groupId>
+                <artifactId>nest-wallet</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

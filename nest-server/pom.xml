@@ -35,6 +35,10 @@
             <groupId>com.nest</groupId>
             <artifactId>nest-chat</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-wallet</artifactId>
+        </dependency>
 
         <!-- Spring Boot 基础 -->
         <dependency>

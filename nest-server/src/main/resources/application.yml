@@ -41,7 +41,8 @@ knife4j:
   enable: true
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  # 注意：必须是 classpath*:（跨 jar 匹配）。用 classpath: 只会加载其中一个模块的 mapper 目录。
+  mapper-locations: classpath*:mapper/*.xml
   type-aliases-package: com.nest.entity
   configuration:
     map-underscore-to-camel-case: true

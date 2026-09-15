@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.wallet.mapper.WalletMapper">
+
+    <select id="selectByUser" resultType="Wallet">
+        SELECT * FROM wallet WHERE user_type = #{userType} AND user_id = #{userId}
+    </select>
+
+    <select id="selectById" resultType="Wallet">
+        SELECT * FROM wallet WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wallet (user_type, user_id, balance, status, create_time, update_time)
+        VALUES (#{userType}, #{userId}, #{balance}, 1, NOW(), NOW())
+    </insert>
+
+    <update id="increaseBalance">
+        UPDATE wallet
+        SET balance = balance + #{amount}, update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 条件扣款：余额充足才扣，返回 0 表示余额不足（并发安全） -->
+    <update id="decreaseBalance">
+        UPDATE wallet
+        SET balance = balance - #{amount}, update_time = NOW()
+        WHERE id = #{id} AND balance &gt;= #{amount}
+    </update>
+
+</mapper>

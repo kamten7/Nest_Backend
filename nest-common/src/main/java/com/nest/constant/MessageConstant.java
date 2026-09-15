@@ -44,6 +44,8 @@ public final class MessageConstant {
     public static final String INSPECTION_ALREADY_SUBMITTED = "该周期检测已提交";
     public static final String WALLET_NOT_FOUND = "钱包不存在";
     public static final String WALLET_BALANCE_INSUFFICIENT = "钱包余额不足";
+    public static final String WALLET_AMOUNT_INVALID = "金额必须大于 0";
+    public static final String WALLET_FROZEN = "钱包已被冻结，请联系客服";
     public static final String RENT_ORDER_NOT_FOUND = "租房订单不存在";
     public static final String RENT_ORDER_STATUS_INVALID = "当前订单状态不允许此操作";
     public static final String TERMINATION_ALREADY_APPLIED = "您已提交退租申请";
