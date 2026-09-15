@@ -78,7 +78,13 @@
             AND room_count = #{roomCount}
         </if>
         <if test="keyword != null and keyword != ''">
-            AND (title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+            <!-- ⚠️ 不能只查 title/description：description 常为空，address（小区/门牌）才是用户口头地名的落点。
+                 把 address / city / district 一并纳入，避免"霞山区""银帆花园"这类 keyword 查空。 -->
+            AND (title LIKE CONCAT('%', #{keyword}, '%')
+                 OR description LIKE CONCAT('%', #{keyword}, '%')
+                 OR address LIKE CONCAT('%', #{keyword}, '%')
+                 OR city LIKE CONCAT('%', #{keyword}, '%')
+                 OR district LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <choose>
             <when test="sortBy == 'price_asc'">ORDER BY price ASC</when>

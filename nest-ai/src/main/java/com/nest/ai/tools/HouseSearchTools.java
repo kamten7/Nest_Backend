@@ -5,6 +5,7 @@ import com.nest.dto.HouseQueryDTO;
 import com.nest.service.HouseService;
 import com.nest.vo.HouseMarkerVO;
 import com.nest.vo.HouseVO;
+import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,43 +23,81 @@ public class HouseSearchTools {
 
     private final HouseService houseService;
 
-    @Tool("搜索房源。keyword 可以是小区名、地址、标题关键词（如'银帆花园'、'国贸'），city 是城市，district 是区域。用户说'XX附近/XX小区/XX地段'时，把 XX 作为 keyword 搜索")
-    public String searchHouses(String keyword,
-                               String city,
-                               String district,
-                               Double minPrice,
-                               Double maxPrice,
-                               String rentType,
-                               Integer roomCount,
-                               Integer limit) {
+    @Tool("搜索房源。城市放 city（如'湛江市'），区域放 district（如'霞山区'），keyword 只放小区名/地址/标题关键词（如'银帆花园'）。不要把区域名、城市名或整句话塞进 keyword")
+    public String searchHouses(
+            @P("关键词：只放小区名/地址/标题词，如'银帆花园'、'国贸'；不知道就不传，不要传区域名、城市名或整句话")
+            String keyword,
+            @P("城市，如'湛江市'；不知道就不传，不要编造城市")
+            String city,
+            @P("区域/区县，如'霞山区'；不知道就不传")
+            String district,
+            @P("最低月租（元）；未知不传")
+            Double minPrice,
+            @P("最高月租（元）；未知不传")
+            Double maxPrice,
+            @P("出租方式：整租 / 合租 / 短租；未知不传")
+            String rentType,
+            @P("户型室数：一居室=1、二居室=2、三居室=3；未知不传")
+            Integer roomCount,
+            @P("返回条数，1-10，默认 5")
+            Integer limit) {
+        int size = limit != null && limit > 0 && limit <= 10 ? limit : 5;
+
+        PageResult<HouseVO> result = houseService.list(
+                buildQuery(keyword, city, district, minPrice, maxPrice, rentType, roomCount, size));
+        String relaxed = "无";
+
+        // 分级放宽（按"误伤概率"从高到低放开）。
+        // ⚠️ 原实现只丢 city/district 却保留 keyword —— 而 keyword 只在 title/description 上 LIKE，
+        // 一旦模型把地名/整句塞进 keyword（如 keyword='霞山区'、'湛江市内二居室'），
+        // 两轮都会查空、永远救不回来。所以第一级必须先把 keyword 丢掉。
+        if (isEmpty(result) && notBlank(keyword)) {
+            result = houseService.list(
+                    buildQuery(null, city, district, minPrice, maxPrice, rentType, roomCount, size));
+            relaxed = "已忽略 keyword";
+        }
+        if (isEmpty(result) && (notBlank(city) || notBlank(district))) {
+            result = houseService.list(
+                    buildQuery(null, null, null, minPrice, maxPrice, rentType, roomCount, size));
+            relaxed = "已忽略 keyword + 城市/区域";
+        }
+
+        log.info("AI 搜索房源: keyword={}, city={}, district={}, roomCount={}, rentType={}, price=[{}, {}], limit={}"
+                        + " → 命中 {} 条（放宽: {}）",
+                keyword, city, district, roomCount, rentType, minPrice, maxPrice, size,
+                result.getRecords() == null ? 0 : result.getRecords().size(), relaxed);
+
+        return formatHouses(result.getRecords());
+    }
+
+    /** 组装查询条件（空串统一转 null，避免空串参与过滤）。 */
+    private HouseQueryDTO buildQuery(String keyword, String city, String district,
+                                     Double minPrice, Double maxPrice, String rentType,
+                                     Integer roomCount, int pageSize) {
         HouseQueryDTO dto = new HouseQueryDTO();
-        dto.setKeyword(keyword);
-        dto.setCity(city);
-        dto.setDistrict(district);
+        dto.setKeyword(blankToNull(keyword));
+        dto.setCity(blankToNull(city));
+        dto.setDistrict(blankToNull(district));
         dto.setMinPrice(minPrice != null ? BigDecimal.valueOf(minPrice) : null);
         dto.setMaxPrice(maxPrice != null ? BigDecimal.valueOf(maxPrice) : null);
-        dto.setRentType(rentType);
+        dto.setRentType(blankToNull(rentType));
         dto.setRoomCount(roomCount);
         dto.setPage(1);
-        dto.setPageSize(limit != null && limit > 0 && limit <= 10 ? limit : 5);
+        dto.setPageSize(pageSize);
         dto.setSortBy("newest");
+        return dto;
+    }
 
-        PageResult<HouseVO> result = houseService.list(dto);
+    private static boolean isEmpty(PageResult<HouseVO> result) {
+        return result == null || result.getRecords() == null || result.getRecords().isEmpty();
+    }
 
-        if ((result.getRecords() == null || result.getRecords().isEmpty())
-                && (dto.getCity() != null || dto.getDistrict() != null)) {
-            HouseQueryDTO fallback = new HouseQueryDTO();
-            fallback.setKeyword(keyword);
-            fallback.setMinPrice(dto.getMinPrice());
-            fallback.setMaxPrice(dto.getMaxPrice());
-            fallback.setRentType(rentType);
-            fallback.setRoomCount(roomCount);
-            fallback.setPage(1);
-            fallback.setPageSize(dto.getPageSize());
-            fallback.setSortBy("newest");
-            result = houseService.list(fallback);
-        }
-        return formatHouses(result.getRecords());
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     @Tool("查询单个房源详情，包含描述、户型、朝向、要求等信息")

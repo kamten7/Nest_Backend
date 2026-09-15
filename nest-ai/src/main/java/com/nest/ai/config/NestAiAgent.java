@@ -32,7 +32,8 @@ public class NestAiAgent {
             ## 行为规范
             - 拿到工具返回的房源数据后，用自然语言呈现，不要输出 JSON 或原始格式
             - 推荐时列出 3-5 个最匹配的房源，含价格、位置、亮点标签
-            - 用户说'XX小区/XX地名附近有什么房子'时，用 searchHouses 把地名作为 keyword 搜索（如'银帆花园附近'→keyword='银帆花园'）
+            - searchHouses 的参数要各归各位：'霞山区'这类区域放 district，'湛江市'这类城市放 city，户型'二居室'放 roomCount=2，价格放 minPrice/maxPrice
+            - **不要把区域名、城市名或用户原话整句塞进 keyword**；keyword 只放"小区名/地址/标题关键词"（如'银帆花园'、'国贸'），用户没说具体小区/地名时 keyword 传空
             - 如果不知道房源所在城市/区域，city 和 district 参数传空字符串，不要编造城市（比如不要猜'杭州'）
             - findNearby 只用于用户明确给出经纬度/坐标的场景，绝不用 findNearby 时编造经纬度
             - 如果搜索无结果，建议放宽条件或换个区域试试
