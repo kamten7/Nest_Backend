@@ -23,4 +23,14 @@ public interface RentSourceMapper {
 
     /** 批量取房源标题与封面（订单列表/详情用，避免逐条查询的 N+1） */
     List<HouseBriefDTO> selectHouseBriefByIds(@Param("houseIds") Collection<Long> houseIds);
+
+    /**
+     * 取租客绑定的手机号（确认租房的前置校验用）。
+     *
+     * <p>这里直接查 tenant 表，而不是复用 nest-server 的 TenantMapper —— 后者属 nest-server，
+     * 反向依赖会成环（同本类顶部注释）。
+     *
+     * @return 手机号；未绑定返回 null
+     */
+    String selectTenantPhone(@Param("tenantId") Long tenantId);
 }

@@ -54,6 +54,7 @@ public final class MessageConstant {
     public static final String RENT_PAY_PERIOD_INVALID = "缴费周期与订单待缴周期不一致";
     public static final String RENT_DEDUCT_EXCEED_DEPOSIT = "扣款金额不能超过押金总额";
     public static final String RENT_SETTLE_NOT_DUE = "已购租期尚未结束，暂不能结算押金";
+    public static final String RENT_PHONE_REQUIRED = "请先绑定手机号后再租房（我的 → 个人信息）";
     public static final String WALLET_WITHDRAW_LOCKED = "在租订单的押金不可提现，当前可提现金额不足";
     public static final String TERMINATION_ALREADY_APPLIED = "您已提交退租申请";
     public static final String PHONE_ALREADY_REGISTERED = "该手机号已注册";

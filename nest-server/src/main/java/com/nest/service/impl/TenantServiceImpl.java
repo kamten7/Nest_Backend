@@ -10,14 +10,17 @@ import com.nest.dto.TenantRegisterDTO;
 import com.nest.entity.Tenant;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.TenantMapper;
+import com.nest.minio.service.MinioService;
 import com.nest.service.TenantService;
 import com.nest.service.WxAuthService;
 import com.nest.utils.JwtUtil;
 import com.nest.vo.TenantLoginVO;
+import com.nest.vo.TenantProfileVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -27,9 +30,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class TenantServiceImpl implements TenantService {
 
+    /** 头像在 bucket 内的目录前缀 */
+    private static final String AVATAR_FOLDER = "avatar";
+
     private final TenantMapper tenantMapper;
     private final WxAuthService wxAuthService;
     private final WeChatProperties weChatProperties;
+    private final MinioService minioService;
 
     /** 租客登录（支持微信 code 或手机号）。 */
     @Override
@@ -77,6 +84,8 @@ public class TenantServiceImpl implements TenantService {
                 .id(tenant.getId())
                 .nickname(tenant.getNickname())
                 .avatar(tenant.getAvatar())
+                .phone(tenant.getPhone())
+                .gender(tenant.getGender())
                 .token(token)
                 .build();
     }
@@ -109,43 +118,108 @@ public class TenantServiceImpl implements TenantService {
                 .id(tenant.getId())
                 .nickname(tenant.getNickname())
                 .avatar(tenant.getAvatar())
+                .phone(tenant.getPhone())
+                .gender(tenant.getGender())
                 .token(token)
                 .build();
     }
 
-    /** 更新租客信息。 */
+    /** 查询当前登录租客的个人信息。 */
+    @Override
+    public TenantProfileVO getProfile() {
+        return toProfileVO(requireCurrentTenant());
+    }
+
+    /**
+     * 更新租客个人信息。所有字段均可选，只更新「传了值」的字段。
+     *
+     * <p>⚠️ 手机号<b>只校验格式长度与唯一性</b>，不校验号码是否真实存在/是否本人。
+     * 短信验证码校验属于「上线并真正投入使用后」才启用的能力，与微信支付一样先预留：
+     * 届时在 {@code phone != null} 分支前加一步「校验短信验证码」即可，接口契约不变。
+     */
     @Override
     public void updateProfile(TenantProfileDTO dto) {
-        Long currentId = BaseContext.getCurrentId();
-        if (currentId == null) {
-            throw new BusinessException(MessageConstant.NOT_LOGIN);
+        Tenant tenant = requireCurrentTenant();
+        Long currentId = tenant.getId();
+
+        String phone = trimToNull(dto.getPhone());
+        String nickname = trimToNull(dto.getNickname());
+        String avatar = trimToNull(dto.getAvatar());
+
+        if (phone == null && nickname == null && avatar == null && dto.getGender() == null) {
+            log.info("租客个人信息更新：没有可更新字段，跳过, id={}", currentId);
+            return;
         }
 
-        Tenant tenant = tenantMapper.selectById(currentId);
-        if (tenant == null) {
-            throw new BusinessException(MessageConstant.ACCOUNT_NOT_FOUND);
-        }
-
-        String phone = dto.getPhone();
-        if (phone == null || phone.isEmpty()) {
-            throw new BusinessException(MessageConstant.PHONE_INVALID);
-        }
-
-        Tenant exist = tenantMapper.selectByPhone(phone);
-        if (exist != null && !exist.getId().equals(currentId)) {
-            throw new BusinessException(MessageConstant.PHONE_ALREADY_REGISTERED);
+        if (phone != null) {
+            // 唯一性校验：不允许两个账号绑同一手机号，否则手机号登录会歧义
+            Tenant exist = tenantMapper.selectByPhone(phone);
+            if (exist != null && !exist.getId().equals(currentId)) {
+                throw new BusinessException(MessageConstant.PHONE_ALREADY_REGISTERED);
+            }
         }
 
         Tenant updated = Tenant.builder()
                 .id(currentId)
-                .phone(dto.getPhone())
-                .nickname(dto.getNickname())
-                .avatar(dto.getAvatar())
+                .phone(phone)
+                .nickname(nickname)
+                .avatar(avatar)
+                .gender(dto.getGender())
                 .build();
-        int rows = tenantMapper.update(updated);
-        if (rows == 0) {
-            throw new BusinessException(MessageConstant.PROFILE_UPDATE_FAILED);
+        // update 是动态 SQL 且必然带上 update_time = NOW()，影响行数为 0 只可能是「值没变化」，
+        // 不能据此判定失败（用户连续点保存就会命中），故这里不校验 rows。
+        tenantMapper.update(updated);
+        log.info("租客个人信息已更新: id={}, phone={}, nickname={}, gender={}", currentId, phone, nickname, dto.getGender());
+    }
+
+    /** 上传头像到「头像专用 bucket」并直接写回租客资料，返回头像 URL（前端选完图即可生效）。 */
+    @Override
+    public String uploadAvatar(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(MessageConstant.IMAGE_UPLOAD_EMPTY);
         }
+        Tenant tenant = requireCurrentTenant();
+
+        // 按租客 ID 分目录，便于排查与清理
+        String url = minioService.uploadAvatar(file, AVATAR_FOLDER + "/" + tenant.getId());
+        tenantMapper.update(Tenant.builder().id(tenant.getId()).avatar(url).build());
+
+        log.info("租客头像已更新: id={}, url={}", tenant.getId(), url);
+        return url;
+    }
+
+    /** 取当前登录租客；未登录 / 账号不存在直接抛业务异常。 */
+    private Tenant requireCurrentTenant() {
+        Long currentId = BaseContext.getCurrentId();
+        if (currentId == null) {
+            throw new BusinessException(MessageConstant.NOT_LOGIN);
+        }
+        Tenant tenant = tenantMapper.selectById(currentId);
+        if (tenant == null) {
+            throw new BusinessException(MessageConstant.ACCOUNT_NOT_FOUND);
+        }
+        return tenant;
+    }
+
+    private TenantProfileVO toProfileVO(Tenant tenant) {
+        String phone = tenant.getPhone();
+        return TenantProfileVO.builder()
+                .id(tenant.getId())
+                .nickname(tenant.getNickname())
+                .avatar(tenant.getAvatar())
+                .phone(phone)
+                .gender(tenant.getGender())
+                .phoneBound(phone != null && !phone.isBlank())
+                .build();
+    }
+
+    /** 空串 / 纯空白一律归一成 null，表示「该字段不修改」。 */
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /** 用微信 code 换取 openid。mock 模式返回伪造值（仅本地开发），否则调用微信 jscode2session。 */

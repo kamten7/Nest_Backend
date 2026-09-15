@@ -34,4 +34,9 @@
         <foreach collection="houseIds" item="hid" open="(" separator="," close=")">#{hid}</foreach>
     </select>
 
+    <!-- 确认租房前置校验：取租客绑定的手机号（未绑定返回 null） -->
+    <select id="selectTenantPhone" resultType="java.lang.String">
+        SELECT phone FROM tenant WHERE id = #{tenantId}
+    </select>
+
 </mapper>

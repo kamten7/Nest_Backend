@@ -84,6 +84,14 @@ public class RentOrderServiceImpl implements RentOrderService {
     @Override
     @Transactional
     public RentOrderVO confirmRent(Long tenantId, Long appointmentId) {
+        // 前置条件：租房必须已绑定手机号（房东需据此联系租客）。
+        // ⚠️ 当前只判断「有没有绑」，不校验号码是否真实/是否本人 —— 短信验证码校验属
+        // 「上线并投入使用后」才启用的能力，与微信支付一样先预留（届时在此处插入验证码校验即可）。
+        String phone = rentSourceMapper.selectTenantPhone(tenantId);
+        if (phone == null || phone.isBlank()) {
+            throw new BusinessException(MessageConstant.RENT_PHONE_REQUIRED);
+        }
+
         RentSourceDTO src = rentSourceMapper.selectSourceByAppointmentId(appointmentId);
         if (src == null) {
             throw new BusinessException(MessageConstant.APPOINTMENT_NOT_FOUND);

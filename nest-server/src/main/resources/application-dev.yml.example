@@ -26,6 +26,7 @@ nest:
 # NEST_MINIO_ACCESS_KEY=minioadmin
 # NEST_MINIO_SECRET_KEY=minioadmin
 # NEST_MINIO_BUCKET=nest-rent
+# NEST_MINIO_AVATAR_BUCKET=nest-avatar   # 用户头像专用 bucket（不存在会自动创建）
 
 # AI 配置（管理端/房东端）
 # NEST_AI_ADMIN_BASE_URL=https://api.siliconflow.cn/v1

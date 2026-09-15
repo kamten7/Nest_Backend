@@ -7,21 +7,23 @@ import com.nest.dto.TenantProfileDTO;
 import com.nest.dto.TenantRegisterDTO;
 import com.nest.service.TenantService;
 import com.nest.vo.TenantLoginVO;
+import com.nest.vo.TenantProfileVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 租客端认证接口。
+ * 租客端认证与个人信息接口。
  */
 @Slf4j
 @RestController
 @RequestMapping("/user/tenant")
 @RequiredArgsConstructor
-@Tag(name = "租客端-认证", description = "租客登录/注册接口")
+@Tag(name = "租客端-认证", description = "租客登录/注册/个人信息接口")
 public class TenantController {
 
     private final TenantService tenantService;
@@ -60,13 +62,34 @@ public class TenantController {
     }
 
     /**
-     * 完善个人信息（微信登录后填写/更新手机号等）。
+     * 查询个人信息（昵称 / 头像 / 手机号 / 性别）。
+     */
+    @GetMapping("/profile")
+    @Operation(summary = "查询个人信息", description = "手机号是「确认租房」的前置条件，未绑定需先绑定")
+    public Result<TenantProfileVO> getProfile() {
+        return Result.success(tenantService.getProfile());
+    }
+
+    /**
+     * 更新个人信息（所有字段可选，只更新传了的字段）。
      */
     @PutMapping("/profile")
-    @Operation(summary = "完善个人信息", description = "微信登录后填写/更新手机号等个人信息")
+    @Operation(summary = "更新个人信息",
+            description = "昵称/手机号/头像/性别均可选；手机号当前只校验格式长度，短信验证码校验为后续上线项")
     public Result<Void> updateProfile(@Valid @RequestBody TenantProfileDTO dto) {
-        log.info("租客完善个人信息请求: phone={}", dto.getPhone());
+        log.info("租客更新个人信息: phone={}, nickname={}, gender={}", dto.getPhone(), dto.getNickname(), dto.getGender());
         tenantService.updateProfile(dto);
         return Result.successMsg("个人信息更新成功");
+    }
+
+    /**
+     * 上传头像到「用户头像专用 bucket」，并直接写回租客资料。
+     */
+    @PostMapping("/avatar")
+    @Operation(summary = "上传头像", description = "上传到头像专用 bucket，成功后直接更新资料，返回头像 URL")
+    public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        log.info("租客头像上传: name={}, size={}", file.getOriginalFilename(), file.getSize());
+        String url = tenantService.uploadAvatar(file);
+        return Result.success("上传成功", url);
     }
 }
