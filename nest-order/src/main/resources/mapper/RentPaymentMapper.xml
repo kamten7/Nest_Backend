@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentPaymentMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rent_payment (order_id, pay_type, period, amount, pay_method, status, biz_no,
+                                  tenant_txn_id, landlord_txn_id, create_time)
+        VALUES (#{orderId}, #{payType}, #{period}, #{amount}, #{payMethod}, #{status}, #{bizNo},
+                #{tenantTxnId}, #{landlordTxnId}, NOW())
+    </insert>
+
+    <select id="selectByOrder" resultType="RentPayment">
+        SELECT * FROM rent_payment WHERE order_id = #{orderId} ORDER BY id
+    </select>
+
+</mapper>

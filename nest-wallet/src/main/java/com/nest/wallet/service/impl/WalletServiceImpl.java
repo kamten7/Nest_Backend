@@ -10,11 +10,13 @@ import com.nest.entity.WalletTransaction;
 import com.nest.exception.BusinessException;
 import com.nest.wallet.mapper.WalletMapper;
 import com.nest.wallet.mapper.WalletTransactionMapper;
+import com.nest.wallet.service.LockedAmountProvider;
 import com.nest.wallet.service.WalletService;
 import com.nest.vo.WalletTransactionVO;
 import com.nest.vo.WalletVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +43,16 @@ public class WalletServiceImpl implements WalletService {
     private final WalletMapper walletMapper;
     private final WalletTransactionMapper walletTransactionMapper;
 
+    /**
+     * 锁定金额提供方（可选依赖）。引入 nest-order 后由其实施，用于把房东在租订单的
+     * 押金从可提现额度中排除；未引入时（如仅模块单测）为 null，视为无锁定。
+     *
+     * <p>刻意用「字段注入 + required=false」而不是构造器注入：保持构造器签名不变，
+     * 已有单测的 {@code @InjectMocks} 不受影响；包内可见是为了让同包单测能替换实现。
+     */
+    @Autowired(required = false)
+    LockedAmountProvider lockedAmountProvider;
+
     // ==================== 查询 ====================
 
     /** 按用户查询钱包，不存在则懒创建。 */
@@ -66,10 +78,16 @@ public class WalletServiceImpl implements WalletService {
         }
     }
 
-    /** 查询钱包余额视图。 */
+    /** 查询钱包余额视图（含锁定金额与可提现余额）。 */
     @Override
     public WalletVO getWalletVO(String userType, Long userId) {
-        return buildVO(getByUser(userType, userId));
+        Wallet wallet = getByUser(userType, userId);
+        BigDecimal locked = lockedAmount(userType, userId);
+        if (locked.signum() > 0) {
+            log.info("钱包带锁定金额: userType={}, userId={}, balance={}, locked={}",
+                    userType, userId, wallet.getBalance(), locked);
+        }
+        return buildVO(wallet.getId(), wallet.getBalance(), locked);
     }
 
     // ==================== 充值 / 提现 ====================
@@ -104,7 +122,13 @@ public class WalletServiceImpl implements WalletService {
         return buildVO(wallet.getId(), balanceAfter);
     }
 
-    /** 提现（预留）：条件扣款，写一条 WITHDRAW 状态=处理中 的支出流水。 */
+    /**
+     * 提现（预留）：条件扣款，写一条 WITHDRAW 状态=处理中 的支出流水。
+     *
+     * <p>可提现额度 = 余额 − 锁定金额（房东在租订单的押金）。提现只作用在
+     * 可提现额度上，押金在租期内始终留在钱包里但提不走；退租结算后被扣下的
+     * 那部分押金不再计入锁定，房东即可提现。
+     */
     @Override
     @Transactional
     public WalletVO withdraw(String userType, Long userId, BigDecimal amount) {
@@ -112,8 +136,17 @@ public class WalletServiceImpl implements WalletService {
         Wallet wallet = getByUser(userType, userId);
         checkUsable(wallet);
 
-        int rows = walletMapper.decreaseBalance(wallet.getId(), amount);
+        BigDecimal locked = lockedAmount(userType, userId);
+        // 无锁定时走原来的 SQL，避免多带一个恒等条件
+        int rows = locked.signum() > 0
+                ? walletMapper.decreaseBalanceWithLock(wallet.getId(), amount, locked)
+                : walletMapper.decreaseBalance(wallet.getId(), amount);
         if (rows == 0) {
+            // 余额本身够但被押金占用 → 提示锁定；余额本身就不够 → 提示余额不足
+            BigDecimal balance = nullToZero(wallet.getBalance());
+            if (locked.signum() > 0 && balance.compareTo(amount) >= 0) {
+                throw new BusinessException(MessageConstant.WALLET_WITHDRAW_LOCKED);
+            }
             throw new BusinessException(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
         }
         BigDecimal balanceAfter = nullToZero(wallet.getBalance()).subtract(amount);
@@ -133,8 +166,9 @@ public class WalletServiceImpl implements WalletService {
                 .build();
         walletTransactionMapper.insert(txn);
 
-        log.info("钱包提现申请: walletId={}, amount={}, balanceAfter={}", wallet.getId(), amount, balanceAfter);
-        return buildVO(wallet.getId(), balanceAfter);
+        log.info("钱包提现申请: walletId={}, amount={}, balanceAfter={}, locked={}",
+                wallet.getId(), amount, balanceAfter, locked);
+        return buildVO(wallet.getId(), balanceAfter, locked);
     }
 
     // ==================== 流水 ====================
@@ -239,6 +273,16 @@ public class WalletServiceImpl implements WalletService {
         return v == null ? ZERO : v;
     }
 
+    /**
+     * 查询某用户的锁定金额（不可提现部分）。无实现方或实现方返回 null 时视为 0。
+     */
+    private BigDecimal lockedAmount(String userType, Long userId) {
+        if (lockedAmountProvider == null) {
+            return ZERO;
+        }
+        return nullToZero(lockedAmountProvider.lockedAmountOf(userType, userId));
+    }
+
     /** 业务单号：前缀 + 时间戳 + 6 位随机数（≤32 位）。 */
     private String genBizNo(String prefix) {
         return prefix + LocalDateTime.now().format(BIZ_NO_FORMATTER)
@@ -246,13 +290,23 @@ public class WalletServiceImpl implements WalletService {
     }
 
     private WalletVO buildVO(Wallet wallet) {
-        return buildVO(wallet.getId(), wallet.getBalance());
+        return buildVO(wallet.getId(), wallet.getBalance(), ZERO);
     }
 
     private WalletVO buildVO(Long walletId, BigDecimal balance) {
+        return buildVO(walletId, balance, ZERO);
+    }
+
+    private WalletVO buildVO(Long walletId, BigDecimal balance, BigDecimal lockedAmount) {
+        BigDecimal b = nullToZero(balance);
+        BigDecimal locked = nullToZero(lockedAmount);
         WalletVO vo = new WalletVO();
         vo.setWalletId(walletId);
-        vo.setBalance(nullToZero(balance));
+        vo.setBalance(b);
+        vo.setLockedAmount(locked);
+        // 可提现余额不允许为负（理论上 locked ≤ balance，这里做防御）
+        BigDecimal available = b.subtract(locked);
+        vo.setAvailableBalance(available.signum() < 0 ? ZERO : available);
         return vo;
     }
 

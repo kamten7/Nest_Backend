@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentReminderLogMapper">
+
+    <!-- uk_order_period(order_id, remind_period, remind_date) 唯一索引即去重闸门：
+         重复提醒时这里会抛 DuplicateKeyException，任务捕获后跳过推送。 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rent_reminder_log (order_id, remind_period, remind_date, create_time)
+        VALUES (#{orderId}, #{remindPeriod}, #{remindDate}, NOW())
+    </insert>
+
+    <select id="countByUnique" resultType="int">
+        SELECT COUNT(*) FROM rent_reminder_log
+        WHERE order_id = #{orderId}
+          AND remind_period = #{remindPeriod}
+          AND remind_date = #{remindDate}
+    </select>
+
+</mapper>

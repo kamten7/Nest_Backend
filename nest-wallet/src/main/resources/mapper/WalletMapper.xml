@@ -29,4 +29,11 @@
         WHERE id = #{id} AND balance &gt;= #{amount}
     </update>
 
+    <!-- 条件扣款（带锁定金额）：余额扣除锁定部分后仍够才能提，防止把押金提穿 -->
+    <update id="decreaseBalanceWithLock">
+        UPDATE wallet
+        SET balance = balance - #{amount}, update_time = NOW()
+        WHERE id = #{id} AND balance - #{lockedAmount} &gt;= #{amount}
+    </update>
+
 </mapper>

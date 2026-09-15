@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentSourceMapper">
+
+    <!-- 确认租房：一次取回「预约 + 房源 + 封面」，房东 ID 与金额一律以库中房源为准 -->
+    <select id="selectSourceByAppointmentId" resultType="com.nest.dto.RentSourceDTO">
+        SELECT a.id            AS appointmentId,
+               a.tenant_id     AS appointmentTenantId,
+               a.status        AS appointmentStatus,
+               h.id            AS houseId,
+               h.landlord_id   AS houseLandlordId,
+               h.title         AS houseTitle,
+               h.price         AS housePrice,
+               h.deposit       AS houseDeposit,
+               h.status        AS houseStatus,
+               hi.url          AS houseCover
+        FROM appointment a
+        JOIN house h ON h.id = a.house_id
+        LEFT JOIN house_image hi ON hi.house_id = h.id AND hi.is_cover = 1
+        WHERE a.id = #{appointmentId}
+    </select>
+
+    <!-- 批量补房源标题/封面（列表与详情用，避免逐条查询） -->
+    <select id="selectHouseBriefByIds" resultType="com.nest.dto.HouseBriefDTO">
+        SELECT h.id          AS houseId,
+               h.title       AS houseTitle,
+               h.price       AS housePrice,
+               h.deposit     AS houseDeposit,
+               hi.url        AS houseCover
+        FROM house h
+        LEFT JOIN house_image hi ON hi.house_id = h.id AND hi.is_cover = 1
+        WHERE h.id IN
+        <foreach collection="houseIds" item="hid" open="(" separator="," close=")">#{hid}</foreach>
+    </select>
+
+</mapper>

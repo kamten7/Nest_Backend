@@ -29,4 +29,14 @@ public interface WalletMapper {
      * 依赖单条 UPDATE 的原子性防止并发超扣。
      */
     int decreaseBalance(@Param("id") Long id, @Param("amount") BigDecimal amount);
+
+    /**
+     * 条件扣款（带锁定金额）：仅当「余额 − 锁定金额 ≥ 扣款金额」时扣减。
+     *
+     * <p>锁定金额（如房东在租订单的押金）参与判断而不是先减余额，
+     * 保证并发提现也不会把押金提穿。
+     */
+    int decreaseBalanceWithLock(@Param("id") Long id,
+                                @Param("amount") BigDecimal amount,
+                                @Param("lockedAmount") BigDecimal lockedAmount);
 }

@@ -278,6 +278,8 @@ CREATE TABLE IF NOT EXISTS rent_termination (
     tenant_id BIGINT NOT NULL COMMENT '退租申请人(租客)',
     apply_time DATETIME NOT NULL COMMENT '退租申请时间',
     effective_end_period VARCHAR(7) NOT NULL COMMENT '生效的已购租期末周期',
+    deduct_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '结算时从押金中扣除、归房东的金额(物品损坏等)',
+    refund_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '实际退回租客的押金金额(= 订单押金 - deduct_amount)',
     refund_status TINYINT DEFAULT 0 COMMENT '押金退回 0待退 1已退',
     refund_time DATETIME DEFAULT NULL COMMENT '押金实际退回时间',
     refund_txn_id BIGINT DEFAULT NULL COMMENT '押金退回流水ID',

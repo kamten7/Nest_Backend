@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentOrderMapper">
+
+    <select id="selectById" resultType="RentOrder">
+        SELECT * FROM rent_order WHERE id = #{id}
+    </select>
+
+    <select id="selectByOrderNo" resultType="RentOrder">
+        SELECT * FROM rent_order WHERE order_no = #{orderNo}
+    </select>
+
+    <select id="selectByAppointmentId" resultType="RentOrder">
+        SELECT * FROM rent_order WHERE appointment_id = #{appointmentId} ORDER BY id DESC LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rent_order (order_no, appointment_id, tenant_id, house_id, landlord_id,
+                                deposit, monthly_rent, status, start_date, next_due_period, paid_months,
+                                create_time, update_time)
+        VALUES (#{orderNo}, #{appointmentId}, #{tenantId}, #{houseId}, #{landlordId},
+                #{deposit}, #{monthlyRent}, #{status}, #{startDate}, #{nextDuePeriod}, #{paidMonths},
+                NOW(), NOW())
+    </insert>
+
+    <select id="selectByTenant" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE tenant_id = #{tenantId}
+        <if test="status != null"> AND status = #{status} </if>
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectByLandlord" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE landlord_id = #{landlordId}
+        <if test="status != null"> AND status = #{status} </if>
+        ORDER BY id DESC
+    </select>
+
+    <!-- 缴押金：1 待缴押金 → 2 租房中（条件更新，重复缴纳时影响行数为 0） -->
+    <update id="activateAfterDeposit">
+        UPDATE rent_order
+        SET status = 2,
+            start_date = #{startDate},
+            next_due_period = #{nextDuePeriod},
+            paid_months = 0,
+            update_time = NOW()
+        WHERE id = #{id} AND status = 1
+    </update>
+
+    <!-- 缴租：后移待缴周期 + 累加已缴月数（仅租房中） -->
+    <update id="advanceAfterRentPaid">
+        UPDATE rent_order
+        SET next_due_period = #{nextDuePeriod},
+            paid_months = paid_months + #{addMonths},
+            update_time = NOW()
+        WHERE id = #{id} AND status = 2
+    </update>
+
+    <update id="toTerminating">
+        UPDATE rent_order SET status = 3, update_time = NOW()
+        WHERE id = #{id} AND status = 2
+    </update>
+
+    <update id="toTerminated">
+        UPDATE rent_order SET status = 4, update_time = NOW()
+        WHERE id = #{id} AND status = 3
+    </update>
+
+    <update id="toCancelled">
+        UPDATE rent_order SET status = 5, update_time = NOW()
+        WHERE id = #{id} AND status = 1
+    </update>
+
+    <!-- 提醒扫描：租房中(status=2)，且今天已进入「待缴周期起始日 − beforeDays 天」。
+         退租申请中(status=3) 不在其中，天然做到「申请退租后停止提醒」。 -->
+    <select id="selectDueForReminder" resultType="RentOrder">
+        SELECT * FROM rent_order
+        WHERE status = 2
+          AND next_due_period IS NOT NULL
+          AND #{today} &gt;= DATE_SUB(
+                STR_TO_DATE(CONCAT(next_due_period, '-01'), '%Y-%m-%d'),
+                INTERVAL #{beforeDays} DAY)
+        ORDER BY id
+    </select>
+
+    <!-- 房东「在租」订单的押金总额：status 2 租房中 / 3 退租申请中（钱未结算，仍占用额度） -->
+    <!-- 房东在租订单的押金总额：状态集合由 Java 侧 RentOrderStatus.DEPOSIT_LOCKED_STATUS 传入，避免 SQL 与常量双份维护 -->
+    <select id="sumLockedDeposit" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(deposit), 0)
+        FROM rent_order
+        WHERE landlord_id = #{landlordId}
+          AND status IN
+        <foreach collection="statuses" item="s" open="(" separator="," close=")">#{s}</foreach>
+    </select>
+
+</mapper>

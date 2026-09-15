@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentTerminationMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rent_termination (order_id, tenant_id, apply_time, effective_end_period,
+                                      deduct_amount, refund_amount, refund_status, remark, create_time)
+        VALUES (#{orderId}, #{tenantId}, #{applyTime}, #{effectiveEndPeriod},
+                #{deductAmount}, #{refundAmount}, #{refundStatus}, #{remark}, NOW())
+    </insert>
+
+    <select id="selectById" resultType="RentTermination">
+        SELECT * FROM rent_termination WHERE id = #{id}
+    </select>
+
+    <select id="selectByOrderId" resultType="RentTermination">
+        SELECT * FROM rent_termination WHERE order_id = #{orderId} ORDER BY id DESC LIMIT 1
+    </select>
+
+    <!-- 标记押金已退回：带 refund_status=0 条件，并发/重跑时只有一次能成功（防双倍退款） -->
+    <update id="markRefunded">
+        UPDATE rent_termination
+        SET deduct_amount = #{deductAmount},
+            refund_amount = #{refundAmount},
+            refund_status = 1,
+            refund_time = #{refundTime},
+            refund_txn_id = #{refundTxnId},
+            remark = #{remark}
+        WHERE id = #{id} AND refund_status = 0
+    </update>
+
+    <!-- 房东超期未结算：已购租期末周期的月末 + 宽限期已过 ⇒ 由定时任务按全额退还（不扣款） -->
+    <select id="selectAutoRefundDue" resultType="RentTermination">
+        SELECT * FROM rent_termination
+        WHERE refund_status = 0
+          AND #{today} &gt; DATE_ADD(
+                LAST_DAY(STR_TO_DATE(CONCAT(effective_end_period, '-01'), '%Y-%m-%d')),
+                INTERVAL #{graceDays} DAY)
+        ORDER BY id
+    </select>
+
+</mapper>

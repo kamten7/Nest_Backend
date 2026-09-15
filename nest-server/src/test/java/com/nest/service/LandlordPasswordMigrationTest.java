@@ -1,5 +1,6 @@
 package com.nest.service;
 
+import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
 import com.nest.dto.LandlordLoginDTO;
 import com.nest.entity.Landlord;
@@ -8,6 +9,7 @@ import com.nest.mapper.LandlordMapper;
 import com.nest.service.impl.LandlordServiceImpl;
 import com.nest.utils.PasswordEncoderUtil;
 import com.nest.vo.LandlordLoginVO;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,12 +32,21 @@ import static org.mockito.Mockito.when;
 
 /**
  * 房东密码 BCrypt 升级与迁移单元测试。
+ *
+ * <p>注意：纯 Mockito 测试没有 Spring 容器，{@code JwtSecretInitializer} 不会执行，
+ * 而登录成功要签发 JWT —— 因此必须在类初始化时手工灌入测试密钥，
+ * 否则 {@code JwtConstant.adminSecretKey()} 会因未初始化而抛错。
  */
 @ExtendWith(MockitoExtension.class)
 class LandlordPasswordMigrationTest {
 
     private static final String PHONE = "13800138000";
     private static final String RAW_PASSWORD = "password123";
+
+    @BeforeAll
+    static void initJwtSecrets() {
+        JwtConstant.initSecrets("unit-test-admin-secret", "unit-test-user-secret");
+    }
 
     @Mock
     private LandlordMapper landlordMapper;

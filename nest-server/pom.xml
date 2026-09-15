@@ -39,6 +39,10 @@
             <groupId>com.nest</groupId>
             <artifactId>nest-wallet</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.nest</groupId>
+            <artifactId>nest-order</artifactId>
+        </dependency>
 
         <!-- Spring Boot 基础 -->
         <dependency>

@@ -48,6 +48,13 @@ public final class MessageConstant {
     public static final String WALLET_FROZEN = "钱包已被冻结，请联系客服";
     public static final String RENT_ORDER_NOT_FOUND = "租房订单不存在";
     public static final String RENT_ORDER_STATUS_INVALID = "当前订单状态不允许此操作";
+    public static final String RENT_ORDER_NOT_OWNER = "不是您的订单，无权操作";
+    public static final String RENT_APPOINTMENT_NOT_VISITED = "该预约尚未看房完成，无法确认租房";
+    public static final String RENT_HOUSE_PRICE_INVALID = "房源租金或押金信息缺失，请联系房东补充";
+    public static final String RENT_PAY_PERIOD_INVALID = "缴费周期与订单待缴周期不一致";
+    public static final String RENT_DEDUCT_EXCEED_DEPOSIT = "扣款金额不能超过押金总额";
+    public static final String RENT_SETTLE_NOT_DUE = "已购租期尚未结束，暂不能结算押金";
+    public static final String WALLET_WITHDRAW_LOCKED = "在租订单的押金不可提现，当前可提现金额不足";
     public static final String TERMINATION_ALREADY_APPLIED = "您已提交退租申请";
     public static final String PHONE_ALREADY_REGISTERED = "该手机号已注册";
     public static final String PHONE_INVALID = "手机号格式不正确";
