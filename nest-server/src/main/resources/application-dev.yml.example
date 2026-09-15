@@ -12,6 +12,15 @@ nest:
     username: root
     password: your_mysql_password
 
+  # 微信小程序登录
+  # ⚠️ mock-enabled=true 时不会调用微信，openid 由 mock-openid 固定提供（本地反复登录=同一租客）
+  # ⚠️ 走真实登录必须：mock-enabled=false，且 appid/secret 与小程序 AppID 完全一致，否则 jscode2session 报 40013
+  wechat:
+    appid: ${NEST_WECHAT_APPID:}
+    secret: ${NEST_WECHAT_SECRET:}
+    mock-enabled: ${NEST_WECHAT_MOCK:true}
+    mock-openid: ${NEST_WECHAT_MOCK_OPENID:nest_dev_tenant}
+
 # MinIO 对象存储（开发环境使用 Docker Compose 中的 MinIO）
 # NEST_MINIO_ENDPOINT=http://localhost:9012
 # NEST_MINIO_ACCESS_KEY=minioadmin

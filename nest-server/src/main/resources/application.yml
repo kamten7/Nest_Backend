@@ -14,9 +14,13 @@ spring:
     type: com.alibaba.druid.pool.DruidDataSource
     druid:
       driver-class-name: ${nest.datasource.driver-class-name}
-      url: jdbc:mysql://${nest.datasource.host}:${nest.datasource.port}/${nest.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      url: jdbc:mysql://${nest.datasource.host}:${nest.datasource.port}/${nest.datasource.database}?connectionTimeZone=%2B08:00&forceConnectionTimeZoneToSession=true&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
       username: ${nest.datasource.username}
       password: ${nest.datasource.password}
+      # 时间基准说明：MySQL 容器 system_time_zone=UTC，会让 DB 默认的 CURRENT_TIMESTAMP 以及 mapper
+      # 里写的 NOW() 都存成 UTC，而 Java 的 LocalDateTime.now() 存本地时区，两者差 8 小时。
+      # 上面的 JDBC URL 用 connectionTimeZone=+08:00 + forceConnectionTimeZoneToSession=true，
+      # 让驱动在每条连接上执行 SET time_zone='+08:00'，使"由数据库生成"的时间与 Java 侧一致。
   data:
     redis:
       host: ${NEST_REDIS_HOST:localhost}
@@ -71,6 +75,7 @@ nest:
     appid: ${NEST_WECHAT_APPID:}
     secret: ${NEST_WECHAT_SECRET:}
     mock-enabled: ${NEST_WECHAT_MOCK:false}        # 生产严禁 true
+    mock-openid: ${NEST_WECHAT_MOCK_OPENID:}       # 仅 mock 生效：固定 openid，保证本地反复登录仍是同一租客
   ai:
     admin:
       base-url: ${NEST_AI_ADMIN_BASE_URL:}

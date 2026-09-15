@@ -151,7 +151,14 @@ public class TenantServiceImpl implements TenantService {
     /** 用微信 code 换取 openid。mock 模式返回伪造值（仅本地开发），否则调用微信 jscode2session。 */
     private String resolveOpenid(String code) {
         if (weChatProperties.isMockEnabled()) {
-            log.warn("微信登录 MOCK 模式：openid 为伪造值，仅限本地开发。code={}", code);
+            String mockOpenid = weChatProperties.getMockOpenid();
+            if (mockOpenid != null && !mockOpenid.isBlank()) {
+                // 固定 openid：uni.login 的 code 每次都是新的，按 code 派生会导致每次登录都变成新租客
+                // （历史消息"消失"、会话对不上），本地开发统一映射到同一个账号。
+                log.warn("微信登录 MOCK 模式：使用固定 openid={}，本次 code 已忽略", mockOpenid);
+                return mockOpenid;
+            }
+            log.warn("微信登录 MOCK 模式：未配置固定 openid，按 code 派生（每次登录都会新建租客）。code={}", code);
             return "wx_" + code;
         }
         return wxAuthService.code2Openid(code);

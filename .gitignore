@@ -6,3 +6,5 @@ target/
 *.iml
 docx/
 .omo/
+# 本地工作数据（项目记忆/冒烟脚本等），不进仓库
+.workbuddy/
