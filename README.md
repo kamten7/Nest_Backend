@@ -1,41 +1,20 @@
-<h1 align="center">🏠 Nest 安居租房后端</h1>
+<h1 align="center">🏠 Nest 安居租房平台</h1>
 
 <p align="center">
-  <strong>多房东 AI 租房平台 · Spring Boot 3 + LangChain4j 真实 Agent + WebSocket 微信级实时聊天</strong>
+  <strong>多房东 AI 租房平台 · Spring Boot 3 + LangChain4j 真实 Agent + Netty 实时聊天 + 押金钱包结算闭环</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Spring_Boot-3.4.3-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot">
   <img src="https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white" alt="Java 21">
   <img src="https://img.shields.io/badge/MyBatis-3.0.4-A7C957?logo=apachemaven&logoColor=white" alt="MyBatis">
+  <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white" alt="MySQL">
   <img src="https://img.shields.io/badge/Redis-7-FF4438?logo=redis&logoColor=white" alt="Redis">
   <img src="https://img.shields.io/badge/MinIO-latest-C23E00?logo=minio&logoColor=white" alt="MinIO">
   <img src="https://img.shields.io/badge/LangChain4j-1.18.1-00B265?logo=langchain&logoColor=white" alt="LangChain4j">
-  <img src="https://img.shields.io/badge/WebSocket-JSR356-23A9F2?logo=websocket&logoColor=white" alt="WebSocket">
+  <img src="https://img.shields.io/badge/Netty-4.1.118-2E2E2E?logo=netty&logoColor=white" alt="Netty">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
 </p>
-
-
-<p align="center">
-  <a href="https://github.com/your-org/nest/stargazers"><img src="https://img.shields.io/github/stars/your-org/nest.svg?style=social&label=Star" alt="Stars"></a>
-  <a href="https://github.com/your-org/nest/issues"><img src="https://img.shields.io/github/issues/your-org/nest" alt="Issues"></a>
-  <a href="https://github.com/your-org/nest/commits/main"><img src="https://img.shields.io/github/commit-activity/m/your-org/nest" alt="Commits"></a>
-</p>
-
-
----
-
-
-## 📌 项目导航
-
-
-| 项 | 地址 |
-|----|------|
-| 在线体验 | 待部署后补充 |
-| 后端详细设计文档 | [后端详细说明](../docs/后端详细说明.md) |
-| 项目迁移方案 | [迁移方案](../docs/迁移方案.md) |
-| 前端 · 房东管理端 | 待补充仓库 |
-| 前端 · 租客小程序 | 待补充仓库 |
 
 
 ---
@@ -43,90 +22,17 @@
 
 ## 📖 项目介绍
 
+**Nest（安居）** 是一套**多房东 AI 租房平台**，面向**租客微信小程序**与**房东 Web 管理端**双端。后端覆盖房源发布与浏览、地图找房、AI 智能找房、收藏、预约看房、评价互动、实时聊天，以及**租房成交、押金/房租收付与钱包结算**的完整撮合闭环。
 
-**Nest（安居）** 是一套**多房东租房平台后端**，面向**租客小程序**与**房东 Web 管理端**双端，覆盖房源发布/浏览、**地图找房**、**AI 智能找房**、收藏、预约看房、评价互动与**微信级实时聊天**的租房撮合业务。两端共用后端 `http://localhost:8080`，采用 **JWT 双通道认证**（租客 `authentication` / 房东 `token`）。
+项目由三个**相互独立的 Git 仓库**组成，各自独立开发、独立提交：
 
-> 🚧 **当前范围**：已实现「房源 → 找房/地图 → 详情 → 预约 → 看房」撮合闭环与 AI/聊天/评价/收藏等旁路能力；
-> **签约成交、押金/房租收取、钱包收付** 已完成设计（见根目录 `Plan.md`），为下一阶段开发目标。
+| 端 | 仓库 |
+|----|------|
+| 服务端（Spring Boot 多模块） | 本仓库 · `backend` |
+| 房东管理端（Vue 3 + Element Plus） | `nest-frontend` · `https://github.com/your-org/nest-frontend` |
+| 租客端（uni-app 微信小程序） | `nest-miniapp` · `https://github.com/your-org/nest-miniapp` |
 
-
----
-
-
-## ✨ 项目亮点
-
-
-**🤖 真实 AI Agent（真正 Function Calling）**
-基于 LangChain4j `AiServices`，模型**自行决策**调用 `HouseSearchTools` 的只读工具（`searchHouses` / `getHouseDetail` / `findNearby` / `recommendHouses` / `getHouseReviews`）拉取**真实房源数据**（非正则预执行），再组织成自然语言，SSE 流式输出。工具零共享实例状态、天然并发安全；System Prompt 约束助手不捏造房源、不泄露房东电话；写操作（预约/收藏）由用户在前端确认，AI 不越权。
-
-
-**💬 实时聊天 + 预约联动**
-基于 JSR-356（Jakarta WebSocket API）的全双工实时通道，运行于内嵌 Tomcat 容器。握手阶段完成 JWT 校验（要求路径 userId 与 token 一致，防冒充），消息全量落库、离线补齐；预约状态变更（创建/确认/取消）经**同一通道**实时推送，双端状态一致。
-
-
-**🗺️ 免费地图找房**
-OpenStreetMap + Nominatim 零成本方案，**Redis 缓存 30 天 + 1 次/秒限速**（符合第三方使用政策）。经纬度外接矩形粗筛 + Haversine 精排，支持地图选点发布、周边检索与 AI 附近推荐。
-
-
-**💰 租房成交 + 钱包闭环（🚧 规划中）**
-看房结束后确认租房，押金/月租/提前支付（≤5 月）/退租/到期退押金全流程闭环；租金自动入房东钱包，余额与流水同事务、`peer` 双向记账，账实一致。**当前阶段：代码未实现，设计方案见 `Plan.md`**。
-
-
----
-
-
-## 📸 项目演示
-
-
-> 截图位预留，将对应图片放入 [`../docs/image/`](../docs/image/) 后自动展示（突出核心亮点）。
-
-
-**🤖 AI 智能找房** — 自然语言 → Function Calling 查真实房源 → 流式回答
-
-
-<p align="center">
-  <img src="../docs/image/readme-1-ai.png" alt="AI 找房" width="78%">
-</p>
-
-
-**🗺️ 地图找房** — 视野内房源标记 + 附近检索
-
-
-<p align="center">
-  <img src="../docs/image/readme-2-map.png" alt="地图找房" width="78%">
-</p>
-
-
-**💬 实时聊天** — 会话列表 + 聊天气泡 + 已读回执
-
-
-<p align="center">
-  <img src="../docs/image/readme-3-chat.png" alt="实时聊天" width="78%">
-</p>
-
-
-**📅 预约看房** — 待确认 → 已确认 → 已看房 双端联动
-
-
-<p align="center">
-  <img src="../docs/image/readme-4-appointment.png" alt="预约看房" width="78%">
-</p>
-
-
-**🖥️ 房源管理** — 发布 / 编辑 / 上下架 / 多图上传
-
-
-<p align="center">
-  <img src="../docs/image/readme-5-house.png" alt="房源管理" width="78%">
-</p>
-
-
-**💰 租房成交与钱包** — 订单状态流转 + 钱包余额/流水（🚧 规划中）
-
-
-<p align="center">
-  <img src="../docs/image/readme-6-rent.png" alt="租房成交与钱包" width="78%">
-</p>
+两端共用同一套后端 API，采用 **JWT 双通道认证**：租客请求携带 `authentication` 头，房东请求携带 `token` 头，服务端用两把独立密钥分别签发与校验，互不通用。
 
 
 ---
@@ -134,125 +40,203 @@ OpenStreetMap + Nominatim 零成本方案，**Redis 缓存 30 天 + 1 次/秒限
 
 ## 🛠 技术栈
 
-
 | 类别 | 技术 | 说明 |
 |------|------|------|
-| 核心 | Spring Boot 3.4.3 · Java 21 | IoC + 自动配置 |
-| ORM | MyBatis 3.0.4 · PageHelper 2.1.0 | SQL 映射 + 分页 |
-| 缓存 | Redis 7（Docker 6381） | 地理编码缓存（TTL 30 天）等 |
-| 存储 | MinIO（Docker 9012） | 房源图片（S3 兼容） |
-| 认证 | JWT 双通道（JJWT 0.12.6） | 租客 / 房东独立密钥、独立拦截器 |
-| AI | LangChain4j 1.18.1 | 真实 Function Calling Agent（DeepSeek-V3 @ SiliconFlow / GLM-4-Flash） |
-| 聊天 | `nest-chat`（JSR-356 / Netty） | 独立聊天模块，握手 JWT 鉴权，全双工实时双向 |
-| 地图 | OpenStreetMap + Nominatim | 免费、Redis 缓存 + 1 req/s 限速 |
-| 文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
+| 核心框架 | Spring Boot 3.4.3 · Java 21 | IoC / 自动配置 / 内嵌 Tomcat |
+| 持久层 | MyBatis 3.0.4 · PageHelper 2.1.0 | XML 映射 + 物理分页 |
+| 数据库 | MySQL 8.0 | 18 张表，`sql/nest_rent.sql` 一键建库 |
+| 连接池 | Druid | 数据源管理 |
+| 缓存 | Redis 7 | 地理编码缓存、AI 对话记忆持久化 |
+| 对象存储 | MinIO | 房源图片 / 用户头像，双 bucket 分存 |
+| 认证 | JJWT 0.12.6 | JWT 双通道，租客与房东独立密钥 + 独立拦截器 |
+| AI | LangChain4j 1.18.1 | 真实 Function Calling Agent（DeepSeek-V3） |
+| 实时通信 | Netty 4.1.118 | 聊天长连接，握手阶段完成 JWT 鉴权 |
+| 参数校验 | Jakarta Validation | DTO 注解 + 全局异常统一处理 |
+| 接口文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
+| 地图服务 | OpenStreetMap + Nominatim | 免费方案，Redis 缓存 + 限速 |
 
 
 ---
 
 
-## 📁 项目结构
+## ✨ 项目亮点
 
+**🤖 真实 AI Agent，不是正则预执行**
+基于 LangChain4j `AiServices`，由模型**自行决策**调用只读 `@Tool`（`searchHouses` / `getHouseDetail` / `findNearby` / `recommendHouses` / `getHouseReviews`）拉取**真实房源数据**，再组织成自然语言 SSE 流式返回。工具零共享状态、天然并发安全；System Prompt 约束不捏造房源、不泄露房东电话；写操作（预约 / 收藏）一律由用户在前端确认，AI 不越权。
+
+**💬 独立聊天模块，传输层可切换**
+`nest-chat` 把业务与传输彻底解耦（`MessageTransport` / `MessageDispatcher` / `MessageListener` SPI 三段式），默认走 **Netty**，一行配置即可切回 JSR-356。握手阶段解析 JWT 并与路径上的 userId 强校验，防止冒充连接；消息全量落库，支持离线拉取补齐、已读回执与输入状态。
+
+**💰 押金锁定 + 钱包双向记账**
+押金收到后**留在房东钱包内但租期内不可提现**（可提现额度 = 余额 − 名下在租订单押金之和）；退租时房东可扣款作为赔偿，剩余押金经 `transferPay` 退回租客。两笔流水 `peer` 互指、共用同一 `biz_no`，同事务保证账实一致；余额扣减走**单条条件 UPDATE**，天然防并发超扣。
+
+**🗺️ 零成本地图找房**
+OpenStreetMap + Nominatim 免费方案，地址与坐标互转带 Redis 缓存；地图检索先用**外接矩形**粗筛，再用 Haversine 精排距离。
+
+**🧩 多模块单向依赖 + SPI 解耦**
+8 个 Maven 模块严格单向依赖。跨模块的"反向"需求（例如钱包需要知道业务侧锁定了多少钱）通过**接口声明在使用方、实现放在另一方**的 SPI 解决，既不成环，也让各模块可被独立替换与单测。
+
+
+---
+
+
+## 📁 模块结构
 
 ```
 backend/
-├── nest-common/          # 工具类 / Result / BaseContext / JWT 常量与工具 / 地理工具 / 异常
-├── nest-pojo/            # Entity / DTO / VO（12 个业务实体：房源、预约、会话、消息、评价、收藏等）
-├── nest-ai/              # 🤖 LangChain4j Agent：模型配置 + 只读 @Tool 工具集
-├── nest-minio/           # 📦 对象存储：MinioClient 配置 + 上传服务
-├── nest-chat/            # 💬 聊天模块：Netty / JSR-356 传输 + PushService 推送
+├── nest-common/     # 技术底座：Result / PageResult / BaseContext / 常量 / 工具 / 异常
+├── nest-pojo/       # 实体 / DTO / VO 统一收口（不随业务模块走）
+├── nest-ai/         # AI Agent：模型配置 + 只读 @Tool 工具集 + 对话记忆
+├── nest-minio/      # 对象存储：MinioClient 配置 + 上传服务（含 bucket 懒创建）
+├── nest-chat/       # 聊天：传输层抽象 + Netty 服务端 + 入站派发 + 出站推送
 │   └── src/main/java/com/nest/chat/
-│       ├── netty/        # Netty 服务端 + 通道处理器
-│       ├── jsr356/       # 聊天端点（/ws/chat/{userType}/{userId}）+ 握手鉴权
-│       ├── transport/    # 传输层抽象（jsr356 / netty 可切换）
-│       ├── core/         # MessageDispatcher 入站路由 + MessageListener SPI
-│       └── push/         # PushService 推送 API
-├── nest-server/          # Controller / Service / Mapper / 配置 / 拦截器
+│       ├── netty/       # Netty 服务端与通道处理器
+│       ├── jsr356/      # JSR-356 端点（/ws/chat/{userType}/{userId}）
+│       ├── transport/   # 传输层抽象（netty / jsr356 可切换）
+│       ├── core/        # MessageDispatcher 入站路由 + MessageListener SPI
+│       └── push/        # PushService 统一推送出口
+├── nest-wallet/     # 钱包：余额 / 流水 / 双向记账 / 押金锁定 SPI 声明
+├── nest-order/      # 租房订单：确认租房 · 缴押金 · 缴租 · 提前支付 · 退租结算
+│   └── task/        # 缴租提醒、超期自动退押金 两个定时任务
+├── nest-server/     # 唯一应用入口：Controller / Service / Mapper / 配置 / 拦截器
 │   └── src/main/java/com/nest/
-│       ├── interceptor/  # JWT 双通道拦截器（user/admin）
-│       ├── listener/     # MessageListener 实现（入站消息落库）
-│       ├── handler/      # 全局异常处理（统一响应）
-│       └── controller/   # 租客 /user/** · 房东 /admin/**
-└── sql/                  # nest_rent.sql（12 张表）+ test_data.sql（测试数据）
+│       ├── controller/   # 租客 /user/** · 房东 /admin/**
+│       ├── interceptor/  # JWT 双通道拦截器（user / admin）
+│       ├── handler/      # 全局异常处理，统一响应结构
+│       └── config/       # WebMvc / CORS / 拦截器注册等横切配置
+└── sql/             # nest_rent.sql：18 张表 + 房东种子数据，一份脚本建全库
 ```
+
+依赖方向严格单向：`nest-common` → `nest-pojo` → 各业务模块 → `nest-server`。`nest-ai` / `nest-minio` / `nest-chat` 只放**配置与服务**，Controller 一律收口在 `nest-server`；`nest-wallet` / `nest-order` 则自带 Mapper / Service / Controller，是自包含的业务模块。
 
 
 ---
 
 
-## 🚀 快速开始
+## 📸 实机展示
 
+> 截图占位已预留，把对应文件放进 [`docs/image/`](docs/image/) 即可自动展示。
+
+### 房东管理端（Web）
+
+**🏠 房东端首页** — 房源总览与数据概览
+
+<p align="center">
+  <img src="docs/image/admin-01-home.png" alt="房东端 · 首页" width="88%">
+</p>
+
+**➕ 添加房源** — 房源信息填写 + 地图选点 + 多图上传
+
+<p align="center">
+  <img src="docs/image/admin-02-add-house.png" alt="房东端 · 添加房源" width="88%">
+</p>
+
+**💬 聊天** — 与租客一对一会话
+
+<p align="center">
+  <img src="docs/image/admin-03-chat.png" alt="房东端 · 聊天" width="88%">
+</p>
+
+**💰 钱包** — 在租押金（不可提现）/ 可提现余额 / 收支流水
+
+<p align="center">
+  <img src="docs/image/admin-04-wallet.png" alt="房东端 · 钱包" width="88%">
+</p>
+
+**👤 个人主页** — 房东资料与账号信息
+
+<p align="center">
+  <img src="docs/image/admin-05-profile.png" alt="房东端 · 个人主页" width="88%">
+</p>
+
+### 租客端（微信小程序）
+
+**🏠 首页** · **📋 房源详情** · **💬 聊天**
+
+<p align="center">
+  <img src="docs/image/app-01-home.png" alt="用户端 · 首页" width="30%">
+  &nbsp;
+  <img src="docs/image/app-02-house-detail.png" alt="用户端 · 房源详情" width="30%">
+  &nbsp;
+  <img src="docs/image/app-03-chat.png" alt="用户端 · 聊天" width="30%">
+</p>
+
+**⭐ 评论** · **👤 个人首页** · **🤖 AI 聊天**
+
+<p align="center">
+  <img src="docs/image/app-04-review.png" alt="用户端 · 评论" width="30%">
+  &nbsp;
+  <img src="docs/image/app-05-profile.png" alt="用户端 · 个人首页" width="30%">
+  &nbsp;
+  <img src="docs/image/app-06-ai.png" alt="用户端 · AI 聊天" width="30%">
+</p>
+
+
+---
+
+
+## 🚀 启动说明
 
 ```bash
-# 1. 启动 Docker 基础设施（MySQL / Redis / MinIO，在项目根目录）
-cd .. && docker-compose up -d
+# 1. 启动基础设施（MySQL 3309 / Redis 6381 / MinIO 9012，编排文件在上级目录）
+cd .. && docker compose up -d && cd backend
 
-# 2. 初始化数据库（当前目录 backend/）
-mysql -u root -p -P 3309 < sql/nest_rent.sql
-mysql -u root -p -P 3309 < sql/test_data.sql     # 可选：演示数据
+# 2. 建库建表（脚本内含 18 张表与房东种子数据）
+#    数据卷首次初始化时会自动执行；若库已存在，手动执行下面这条
+docker exec -i nest_mysql mysql -uroot -p'<密码>' --default-character-set=utf8mb4 < sql/nest_rent.sql
 
-# 3. 配置开发环境并填入 MySQL / Redis / MinIO / AI API Key
+# 3. 生成本地配置（该文件已被 gitignore，需自行填入数据库 / Redis / MinIO / AI Key / 微信凭证）
 cp nest-server/src/main/resources/application-dev.yml.example \
    nest-server/src/main/resources/application-dev.yml
 
-# 4. 构建 + 启动
+# 4. 构建并启动
 mvn clean install -DskipTests
-cd nest-server && mvn spring-boot:run   # → http://localhost:8080（API 文档 /doc.html）
+cd nest-server && mvn spring-boot:run
 ```
+
+启动后：
+
+| 地址 | 说明 |
+|------|------|
+| `http://localhost:8080` | 后端 API |
+| `http://localhost:8080/doc.html` | 接口文档（Knife4j） |
+| `ws://localhost:8081/ws/chat/{userType}/{userId}?token=` | 聊天长连接（Netty，独立端口） |
 
 
 ---
 
 
-## 🤖 AI 找房
+## 🔄 业务流程
 
+租客从找房到退租的完整链路：
 
-租客在小程序输入自然语言（如「想找杭州 3000 以内、近地铁的房子」），后端经 `AiServices` 构建的 **AI Agent** 自动决定调用 `HouseSearchTools` 的只读工具，取到真实房源后组织成自然语言，通过 SSE 逐字流式返回。多轮对话由 `MessageWindowChatMemory`（最近 20 条）支撑。
+1. **房东发布房源** —— 填写房源信息、地图选点定位、上传多张图片
+2. **租客找房** —— 列表搜索 / 地图视野检索 / AI 自然语言找房，进入房源详情
+3. **预约看房** —— 租客发起预约 → 房东确认 → 线下看房 → 房东标记「已看房」
+4. **确认租房** —— 租客基于「已看房」的预约确认租房，后端生成订单并按房源计算租金与押金（押一付一）
+5. **缴纳押金** —— 押金进入房东钱包，但**租期内锁定不可提现**
+6. **按期缴租** —— 逐月缴租或提前支付（最多 5 个月）；到期前 3 天系统自动提醒
+7. **申请退租** —— 租客发起退租，房东结算：可扣款作为赔偿，剩余押金退回租客钱包
+8. **超期兜底** —— 若租期结束后房东超过 7 天未结算，定时任务自动全额退还押金
 
-
-```mermaid
-flowchart LR
-    A[用户自然语言] --> B[AI 决策选工具]
-    B --> C["@Tool: searchHouses / findNearby / recommendHouses / getHouseReviews"]
-    C --> D[真实房源数据]
-    D --> E[LLM 润色]
-    E --> F[SSE 流式输出]
-```
-
-
-## 💬 实时聊天
-
-
-租客 ↔ 房东一对一实时聊天，通道与推送收敛在独立模块 `nest-chat`（传输层默认 JSR-356，可切 Netty）：握手阶段（`ChatWebSocketConfigurator.modifyHandshake`）完成 JWT 校验并存储可信身份；入站消息经 `MessageDispatcher` 路由后交给 `nest-server` 的 `MessageListener` 实现落库，出站推送统一走 `PushService`。消息全量落 `message` 表（`is_read` 标记），离线期间推送丢弃但消息留存、上线拉取补齐；会话按用户对双向归一（两人只保留一条）；支持已读回执（`read_receipt`）与输入状态（`typing`）转发，心跳保活。模块说明见 [nest-chat/README.md](nest-chat/README.md)。
-
-
-## 🗺️ 地图找房
-
-
-前端地图缩放/拖动即查视野内已上架房源标记（`GET /user/house/map`，center + radius 20km）。后端先按**外接矩形**（`GeoUtils.boundingBox`）粗筛，再按距离精排；房东端 `GET /admin/house/map` 查看本人房源标点。地址 ↔ 坐标互转由 Nominatim 完成（`/admin/house/geocode` 与 `/reverse`），Redis 缓存 30 天 + 内置 1 次/秒限速。
-
-
-## 💰 租房成交与钱包（🚧 规划中）
-
-
-> 设计方案见根目录 `Plan.md`；当前代码仅实现预约至「已看房(3)」，成交(5) 与后续链路待开发。
-
+订单状态流转：
 
 ```mermaid
 stateDiagram-v2
-  [*] --> 待缴押金(1)
-  待缴押金 --> 租房中(2): 缴纳押金
-  租房中 --> 租房中: 每月缴租 / 提前支付≤5月
-  租房中 --> 退租申请中(3): 申请退租
-  退租申请中 --> 已退租(4): 租期结束·退押金
-  待缴押金 --> 已取消(5)
+  [*] --> 待缴押金
+  待缴押金 --> 租房中: 缴纳押金
+  租房中 --> 租房中: 按月缴租 / 提前支付(≤5个月)
+  租房中 --> 退租申请中: 申请退租
+  退租申请中 --> 已退租: 房东结算（可扣款，余额退回租客）
+  待缴押金 --> 已取消
 ```
+
+> 状态码：`1 待缴押金` · `2 租房中` · `3 退租申请中` · `4 已退租` · `5 已取消`
 
 
 ---
 
 
 ## 📄 License
-
 
 MIT © [kamten7](https://github.com/kamten7)
