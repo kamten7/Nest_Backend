@@ -1,0 +1,90 @@
+services:
+  # ==================== MySQL 8.0 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: nest_mysql
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 20050904@Aa
+      MYSQL_DATABASE: nest_rent
+    volumes:
+      - nest-mysql-data:/var/lib/mysql
+      # 首次初始化（数据卷为空）时自动执行建库建表 + 灌入房东种子
+      - ./backend/sql/nest_rent.sql:/docker-entrypoint-initdb.d/01-nest_rent.sql:ro
+    # 字符集/排序规则与 backend/sql/nest_rent.sql 保持一致（MySQL 8 默认）
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nest-net
+
+  # ==================== Redis 7 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: nest_redis
+    ports:
+      - "6381:6379"
+    command: redis-server --requirepass 123456 --port 6379
+    volumes:
+      - nest-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-net
+
+  # ==================== MinIO（S3 兼容对象存储） ====================
+  minio:
+    image: minio/minio:latest
+    container_name: nest_minio
+    ports:
+      - "9012:9000"   # S3 API
+      - "9013:9001"   # Web Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - nest-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-net
+
+  # ==================== MinIO 初始化：自动创建 bucket ====================
+  minio-init:
+    image: minio/mc:latest
+    container_name: nest_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/nest-rent;
+      mc mb --ignore-existing local/nest-avatar;
+      mc anonymous set download local/nest-rent;
+      mc anonymous set download local/nest-avatar;
+      echo '>>> MinIO bucket nest-rent / nest-avatar 创建完成（均为匿名可读，前端 img 可直连）';
+      exit 0;
+      "
+    networks:
+      - nest-net
+
+networks:
+  nest-net:
+    name: nest_net
+
+volumes:
+  nest-mysql-data:
+  nest-redis-data:
+  nest-minio-data:
