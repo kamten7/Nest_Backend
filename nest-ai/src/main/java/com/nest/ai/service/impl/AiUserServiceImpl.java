@@ -125,12 +125,6 @@ public class AiUserServiceImpl implements AiUserService {
 
     /**
      * 清空对话：删除该租客的记忆 key。
-     *
-     * <p>MessageWindowChatMemory 无本地状态（每次现从 store 读），所以删掉 key 就生效，
-     * 下一条消息会自然重建一份空白记忆，不需要「新建会话」这一步。</p>
-     *
-     * <p>⚠️ 已知边界：若清空时服务端仍有流式请求在跑，该请求结束时会整份写回旧记忆，
-     * 表现为「清空失效」。前端已在 streaming 期间禁用清空按钮来规避。</p>
      */
     @Override
     public void clearMemory() {
