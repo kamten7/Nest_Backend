@@ -49,13 +49,15 @@
         WHERE id = #{id} AND status = 1
     </update>
 
-    <!-- 缴租：后移待缴周期 + 累加已缴月数（仅租房中） -->
+    <!-- 缴租：后移待缴周期 + 累加已缴月数（仅租房中；且待缴周期必须仍是调用方读到的那个）
+         第二个条件用于防并发重复扣款：并发时后提交的那条 UPDATE 会因周期已被改而不匹配 ⇒ 0 行 ⇒ 回滚 -->
     <update id="advanceAfterRentPaid">
         UPDATE rent_order
         SET next_due_period = #{nextDuePeriod},
             paid_months = paid_months + #{addMonths},
             update_time = NOW()
         WHERE id = #{id} AND status = 2
+          AND next_due_period = #{expectedPeriod}
     </update>
 
     <update id="toTerminating">

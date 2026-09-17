@@ -37,11 +37,14 @@
         ORDER BY create_time DESC
     </select>
 
+    <!-- 「进行中」的预约只算 待确认(1)/已确认(2)/已看房(3)。
+         已成交(5) 不算占用：成交后房源会进入「在租中」，重复预约由房源状态兜底；
+         若把 5 算进来，一旦「确认租房 → 放弃租房」，这条预约会永远挡住建单，导致该房源再也无法预约。 -->
     <select id="selectActiveByTenantAndHouse" resultType="Appointment">
         SELECT * FROM appointment
         WHERE tenant_id = #{tenantId}
           AND house_id = #{houseId}
-          AND status IN (1, 2, 3, 5)
+          AND status IN (1, 2, 3)
         LIMIT 1
     </select>
 

@@ -58,4 +58,18 @@ public final class MessageConstant {
     public static final String PHONE_ALREADY_REGISTERED = "该手机号已注册";
     public static final String PHONE_INVALID = "手机号格式不正确";
     public static final String PROFILE_UPDATE_FAILED = "个人信息更新失败";
+    /** 手机号直登已被关闭（生产环境只允许微信登录） */
+    public static final String PHONE_LOGIN_DISABLED = "手机号登录已关闭，请使用微信登录";
+    /** 缴租并发冲突：该期已被缴清或订单周期已被其他请求推进 */
+    public static final String RENT_PAY_CONFLICT = "该期租金已缴清或缴费周期已变更，请刷新后重试";
+    /** 模拟充值开关关闭 */
+    public static final String RECHARGE_DISABLED = "充值功能暂未开放";
+    /** 单笔金额超过上限 */
+    public static final String WALLET_AMOUNT_EXCEED = "单笔金额超出上限";
+    /** 房源已被租出或已下架，不能确认租房 */
+    public static final String HOUSE_NOT_RENTABLE = "该房源已被租出或已下架，无法确认租房";
+    /** 房源在租中，房东不能手动改状态 */
+    public static final String HOUSE_RENTED_NO_MANUAL = "房源在租中，无法手动上下架，请先完成退租";
+    /** 仅待缴押金的订单可放弃租房 */
+    public static final String RENT_ORDER_CANNOT_CANCEL = "仅待缴押金的订单可放弃租房";
 }

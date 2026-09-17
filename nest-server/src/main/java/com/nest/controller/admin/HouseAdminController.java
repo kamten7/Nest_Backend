@@ -60,9 +60,9 @@ public class HouseAdminController {
         return Result.successMsg("编辑成功");
     }
 
-    /** 上架/下架。status=1 上架，0 下架。 */
+    /** 上架/下架/重新发布。status: 1=上架, 0=下架；在租中(2) 由系统自动管理，不可手动改。 */
     @PutMapping("/{id}/status")
-    @Operation(summary = "上架/下架")
+    @Operation(summary = "上架/下架/重新发布")
     public Result<Void> updateStatus(@PathVariable Long id,
                                      @Parameter(description = "1=上架, 0=下架") @RequestParam Integer status) {
         log.info("房源状态变更: id={}, status={}", id, status);

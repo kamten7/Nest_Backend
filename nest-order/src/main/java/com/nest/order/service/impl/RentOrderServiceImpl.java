@@ -5,6 +5,7 @@ import com.github.pagehelper.PageInfo;
 import com.nest.chat.push.PushService;
 import com.nest.common.PageResult;
 import com.nest.constant.AppointmentStatus;
+import com.nest.constant.HouseStatus;
 import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
 import com.nest.constant.RentConstant;
@@ -17,6 +18,8 @@ import com.nest.entity.RentPayment;
 import com.nest.entity.RentReminderLog;
 import com.nest.entity.RentTermination;
 import com.nest.exception.BusinessException;
+import com.nest.order.mapper.RentAppointmentMapper;
+import com.nest.order.mapper.RentHouseMapper;
 import com.nest.order.mapper.RentOrderMapper;
 import com.nest.order.mapper.RentPaymentMapper;
 import com.nest.order.mapper.RentReminderLogMapper;
@@ -59,12 +62,16 @@ public class RentOrderServiceImpl implements RentOrderService {
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final String NOTICE_TYPE_RENT = "rent_reminder";
+    /** 放弃租房时回写预约的取消原因。 */
+    private static final String CANCEL_REASON_GIVE_UP = "租房订单已取消（租客放弃租房）";
 
     private final RentOrderMapper rentOrderMapper;
     private final RentPaymentMapper rentPaymentMapper;
     private final RentTerminationMapper rentTerminationMapper;
     private final RentReminderLogMapper rentReminderLogMapper;
     private final RentSourceMapper rentSourceMapper;
+    private final RentAppointmentMapper rentAppointmentMapper;
+    private final RentHouseMapper rentHouseMapper;
     private final WalletService walletService;
     private final PushService pushService;
 
@@ -91,6 +98,10 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (existed != null && existed.getStatus() != RentOrderStatus.CANCELLED) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
+        // 房源必须仍在上架（未被他人租走、未下架）。下面的 markRentedIfAvailable 是原子兜底。
+        if (src.getHouseStatus() == null || src.getHouseStatus() != HouseStatus.AVAILABLE) {
+            throw new BusinessException(MessageConstant.HOUSE_NOT_RENTABLE);
+        }
 
         BigDecimal monthlyRent = src.getHousePrice();
         if (monthlyRent == null || monthlyRent.signum() <= 0) {
@@ -114,6 +125,30 @@ public class RentOrderServiceImpl implements RentOrderService {
         rentOrderMapper.insert(order);
         log.info("确认租房生成订单: orderId={}, orderNo={}, tenantId={}, houseId={}, deposit={}, monthlyRent={}",
                 order.getId(), order.getOrderNo(), tenantId, src.getHouseId(), deposit, monthlyRent);
+
+        // 预约收尾：已看房(3) → 已成交(5)。
+        // 不改的话，预约列表里这条会一直停在「已看房」，前端「确认租房」按钮会一直挂着。
+        // 条件更新，已被并发请求改过时影响行数为 0，属正常情况，只提示不报错。
+        int dealRows = rentAppointmentMapper.markDealIfVisited(appointmentId);
+        if (dealRows == 0) {
+            log.warn("确认租房后预约未置为已成交（状态非 3 或已被并发修改）: appointmentId={}", appointmentId);
+        }
+
+        // 房源上架(1) → 在租中(2)。条件更新，rows==0 说明被并发抢先租走，整笔回滚。
+        int rentRows = rentHouseMapper.markRentedIfAvailable(src.getHouseId());
+        if (rentRows == 0) {
+            throw new BusinessException(MessageConstant.HOUSE_NOT_RENTABLE);
+        }
+
+        // 通知房东：有租客确认租房了。推送失败不影响建单。
+        try {
+            pushService.pushNotice(JwtConstant.TYPE_LANDLORD, order.getLandlordId(), "rent_deal",
+                    "新租房订单",
+                    "租客已确认租下「" + src.getHouseTitle() + "」，待缴押金 "
+                            + deposit.stripTrailingZeros().toPlainString() + " 元。");
+        } catch (Exception e) {
+            log.warn("确认租房通知房东失败: orderId={}, reason={}", order.getId(), e.getMessage());
+        }
 
         HouseBriefDTO house = new HouseBriefDTO();
         house.setHouseId(src.getHouseId());
@@ -199,9 +234,9 @@ public class RentOrderServiceImpl implements RentOrderService {
         BigDecimal amount = nullToZero(order.getMonthlyRent());
         String bizNo = payMonth(order, target, amount, 1);
 
-        int rows = rentOrderMapper.advanceAfterRentPaid(orderId, shiftPeriod(current, 1), 1);
+        int rows = rentOrderMapper.advanceAfterRentPaid(orderId, current, shiftPeriod(current, 1), 1);
         if (rows == 0) {
-            throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
+            throw new BusinessException(MessageConstant.RENT_PAY_CONFLICT);
         }
         log.info("缴纳租金成功: orderId={}, period={}, amount={}, bizNo={}", orderId, target, amount, bizNo);
 
@@ -227,9 +262,9 @@ public class RentOrderServiceImpl implements RentOrderService {
         BigDecimal total = monthlyRent.multiply(BigDecimal.valueOf(n));
         String bizNo = payMonth(order, first, total, n, monthlyRent);
 
-        int rows = rentOrderMapper.advanceAfterRentPaid(orderId, shiftPeriod(first, n), n);
+        int rows = rentOrderMapper.advanceAfterRentPaid(orderId, first, shiftPeriod(first, n), n);
         if (rows == 0) {
-            throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
+            throw new BusinessException(MessageConstant.RENT_PAY_CONFLICT);
         }
         log.info("提前支付租金成功: orderId={}, months={}, from={}, amount={}, bizNo={}",
                 orderId, n, first, total, bizNo);
@@ -270,6 +305,32 @@ public class RentOrderServiceImpl implements RentOrderService {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
         log.info("退租申请已提交: orderId={}, effectiveEndPeriod={}, remark={}", orderId, effectiveEnd, remark);
+        return reloadAndDetail(orderId);
+    }
+
+    @Override
+    @Transactional
+    public RentOrderVO cancelOrder(Long tenantId, Long orderId) {
+        RentOrder order = requireOwnedOrder(tenantId, orderId);
+        if (order.getStatus() != RentOrderStatus.PENDING_DEPOSIT) {
+            throw new BusinessException(MessageConstant.RENT_ORDER_CANNOT_CANCEL);
+        }
+        // 待缴押金阶段尚未发生资金往来：直接置取消，并把房源从「在租中」恢复为「上架」。
+        int rows = rentOrderMapper.toCancelled(orderId);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.RENT_ORDER_CANNOT_CANCEL);
+        }
+        rentHouseMapper.markAvailableIfRented(order.getHouseId());
+        // 预约收尾：已成交(5) → 已取消(4)。
+        // 不回写会让预约列表里留下一条「已成交」却没有任何订单的记录（语义不实）；
+        // 早前还把 5 当成「占用中」，直接导致该房源再也无法重新预约。条件更新，幂等。
+        int apptRows = rentAppointmentMapper.markCancelledIfDeal(order.getAppointmentId(), CANCEL_REASON_GIVE_UP);
+        if (apptRows == 0) {
+            log.warn("放弃租房后预约未置为已取消（状态非 5 或已被并发修改）: orderId={}, appointmentId={}",
+                    orderId, order.getAppointmentId());
+        }
+        log.info("租客放弃租房: orderId={}, houseId={}, appointmentId={}",
+                orderId, order.getHouseId(), order.getAppointmentId());
         return reloadAndDetail(orderId);
     }
 
@@ -330,6 +391,11 @@ public class RentOrderServiceImpl implements RentOrderService {
 
         doRefund(order, termination, deduct, refund,
                 remark != null && !remark.isBlank() ? remark : WalletConstant.bizText(WalletConstant.BIZ_DEPOSIT_REFUND));
+        // 退租结算完成：房源在租中(2) → 下架(0)。需房东手动重新发布。
+        int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
+        if (offRows == 0) {
+            log.warn("退租结算后房源未置为下架（状态非 2 或已被改）: orderId={}, houseId={}", orderId, order.getHouseId());
+        }
         log.info("退租结算完成(房东): orderId={}, deposit={}, deduct={}, refund={}", orderId, deposit, deduct, refund);
         return reloadAndDetail(orderId);
     }
@@ -398,6 +464,11 @@ public class RentOrderServiceImpl implements RentOrderService {
         }
         BigDecimal deposit = nullToZero(order.getDeposit());
         doRefund(order, termination, ZERO, deposit, "房东超期未结算，系统自动全额退回押金");
+        // 自动结算同样要把房源置为下架
+        int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
+        if (offRows == 0) {
+            log.warn("自动退租结算后房源未置为下架: orderId={}, houseId={}", order.getId(), order.getHouseId());
+        }
         log.info("退租结算完成(系统自动): orderId={}, terminationId={}, refund={}",
                 order.getId(), terminationId, deposit);
         return true;

@@ -81,4 +81,10 @@ public class RentOrderUserController {
         String remark = dto == null ? null : dto.getRemark();
         return Result.success("退租申请已提交", rentOrderService.terminate(BaseContext.getCurrentId(), orderId, remark));
     }
+
+    @PostMapping("/{orderId}/cancel")
+    @Operation(summary = "放弃租房", description = "仅待缴押金订单可用：置取消并把房源恢复上架")
+    public Result<RentOrderVO> cancel(@PathVariable Long orderId) {
+        return Result.success("已放弃租房", rentOrderService.cancelOrder(BaseContext.getCurrentId(), orderId));
+    }
 }

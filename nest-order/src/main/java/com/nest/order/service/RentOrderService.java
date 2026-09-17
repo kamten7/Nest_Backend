@@ -32,6 +32,9 @@ public interface RentOrderService {
     /** 申请退租：状态 → 退租申请中，此后不再提醒与缴费；等待租期结束结算押金。 */
     RentOrderVO terminate(Long tenantId, Long orderId, String remark);
 
+    /** 放弃租房：仅待缴押金(1) 可放弃 → 已取消(5)，并把房源恢复为上架。 */
+    RentOrderVO cancelOrder(Long tenantId, Long orderId);
+
 
     /** 名下租房订单（分页，可按状态过滤）。 */
     PageResult<RentOrderVO> listByLandlord(Long landlordId, Integer status, Integer page, Integer pageSize);

@@ -33,8 +33,11 @@ public interface RentOrderMapper {
                              @Param("startDate") LocalDate startDate,
                              @Param("nextDuePeriod") String nextDuePeriod);
 
-    /** 缴租成功：后移待缴周期 + 累加已缴月数（仅租房中可缴） */
+    /**
+     * 缴租成功：后移待缴周期 + 累加已缴月数。
+     */
     int advanceAfterRentPaid(@Param("id") Long id,
+                             @Param("expectedPeriod") String expectedPeriod,
                              @Param("nextDuePeriod") String nextDuePeriod,
                              @Param("addMonths") int addMonths);
 

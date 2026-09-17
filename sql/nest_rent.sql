@@ -11,14 +11,18 @@
 --   钱包与租房（6 张）：wallet / wallet_transaction / rent_order /
 --                      rent_payment / rent_termination / rent_reminder_log
 --
--- 种子数据：仅「房东」2 条（密码 123456 的 MD5 摘要；首次登录会自动升级为 BCrypt）。
---           其余表不填充任何数据。
+-- 种子数据：房东 2 条（密码 123456）+ 可选演示房源 1 套。
+--           房东密码存 MD5 摘要，首次登录会自动升级为 BCrypt。
 --
 -- 约定：
 --   * 字符集统一 utf8mb4 / 排序规则 utf8mb4_0900_ai_ci（MySQL 8 默认）。
 --   * 表之间为「逻辑外键」，不建物理 FOREIGN KEY 约束（由应用层保证一致性）。
---   * 全部 CREATE TABLE IF NOT EXISTS，可重复执行（幂等）。
--- ============================================================
+--   * 全部 CREATE TABLE IF NOT EXISTS + INSERT IGNORE，可重复执行（幂等）。
+
+-- ------------------------------------------------------------
+-- （可选）想「彻底重建」——把下面这行的注释去掉再执行。
+-- ⚠️ 会删掉整个 nest_rent 库及其全部数据，仅确认无需保留时使用！
+DROP DATABASE IF EXISTS nest_rent;
 
 SET NAMES utf8mb4;
 
@@ -53,7 +57,8 @@ CREATE TABLE IF NOT EXISTS tenant (
     status TINYINT DEFAULT 1 COMMENT '状态 1正常 0禁用',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_openid (openid)
+    UNIQUE KEY uk_openid (openid),
+    UNIQUE KEY uk_tenant_phone (phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租客表';
 
 -- ==================== 房源表 ====================
@@ -81,7 +86,7 @@ CREATE TABLE IF NOT EXISTS house (
     available_date DATE DEFAULT NULL COMMENT '可入住日期',
     utilities VARCHAR(100) DEFAULT NULL COMMENT '水电燃气说明',
     requirements VARCHAR(200) DEFAULT NULL COMMENT '租客要求',
-    status TINYINT DEFAULT 1 COMMENT '状态 1上架 0下架',
+    status TINYINT DEFAULT 1 COMMENT '状态 1上架 2在租中 0下架(需房东重新发布)',
     view_count INT DEFAULT 0 COMMENT '浏览次数',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -268,6 +273,7 @@ CREATE TABLE IF NOT EXISTS rent_payment (
     tenant_txn_id BIGINT DEFAULT NULL COMMENT '租客侧钱包流水ID',
     landlord_txn_id BIGINT DEFAULT NULL COMMENT '房东侧钱包流水ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_order_type_period (order_id, pay_type, period) COMMENT '同单同类型同周期唯一：堵并发重复缴租（period 为 NULL 的押金不受限）',
     KEY idx_order (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租房支付记录表';
 
@@ -307,3 +313,24 @@ CREATE TABLE IF NOT EXISTS rent_reminder_log (
 INSERT IGNORE INTO landlord (id, name, phone, password, status) VALUES
     (1, '张房东', '13800000001', 'e10adc3949ba59abbe56e057f20f883e', 1),
     (2, '李房东', '13800000002', 'e10adc3949ba59abbe56e057f20f883e', 1);
+
+-- ============================================================
+-- 可选演示数据：房东1 名下的 1 套房源，方便初始化后立刻能浏览/预约/走租房全流程。
+--   不需要就删掉本段（到「演示数据结束」为止）。
+-- ============================================================
+INSERT IGNORE INTO house (id, landlord_id, title, description, address, province, city, district,
+    latitude, longitude, price, deposit, area, room_count, hall_count, bathroom_count,
+    floor, total_floor, orientation, rent_type, available_date, utilities, requirements,
+    status, view_count, create_time, update_time)
+VALUES (1, 1, '湛江市霞山区精装两居室', '霞山区银帆花园，近海滨，家具家电齐全，拎包入住。',
+    '银帆花园2号', '广东省', '湛江市', '霞山区',
+    21.2192681, 110.3923765, 2000.00, 1000.00, 75.00, 2, 1, 1,
+    8, 18, '南', '整租', '2026-09-20', '民水民电，天然气', '爱干净、不养宠物',
+    1, 0, NOW(), NOW());
+
+-- house_tag 无唯一键，用 NOT EXISTS 保证重复执行不产生重复标签
+INSERT INTO house_tag (house_id, tag_name)
+SELECT 1, '精装修' WHERE NOT EXISTS (SELECT 1 FROM house_tag WHERE house_id = 1 AND tag_name = '精装修');
+INSERT INTO house_tag (house_id, tag_name)
+SELECT 1, '近地铁' WHERE NOT EXISTS (SELECT 1 FROM house_tag WHERE house_id = 1 AND tag_name = '近地铁');
+-- ==================== 演示数据结束 ====================

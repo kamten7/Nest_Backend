@@ -50,8 +50,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         Long tenantId = BaseContext.getCurrentId();
 
         House house = houseMapper.selectById(dto.getHouseId());
-        if (house == null || house.getStatus() == 0) {
+        if (house == null) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
+        }
+        // 非上架状态(下架/在租中)不可预约
+        if (house.getStatus() != 1) {
+            throw new BusinessException(MessageConstant.HOUSE_NOT_RENTABLE);
         }
 
         Appointment active = appointmentMapper.selectActiveByTenantAndHouse(tenantId, dto.getHouseId());

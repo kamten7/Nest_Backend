@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentHouseMapper">
+
+    <update id="markRentedIfAvailable">
+        UPDATE house SET status = 2, update_time = NOW()
+        WHERE id = #{houseId} AND status = 1
+    </update>
+
+    <update id="markAvailableIfRented">
+        UPDATE house SET status = 1, update_time = NOW()
+        WHERE id = #{houseId} AND status = 2
+    </update>
+
+    <update id="markOfflineIfRented">
+        UPDATE house SET status = 0, update_time = NOW()
+        WHERE id = #{houseId} AND status = 2
+    </update>
+
+</mapper>

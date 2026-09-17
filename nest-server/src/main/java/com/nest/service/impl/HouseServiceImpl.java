@@ -4,6 +4,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.common.BaseContext;
 import com.nest.common.PageResult;
+import com.nest.constant.HouseStatus;
 import com.nest.constant.MessageConstant;
 import com.nest.dto.HouseCreateDTO;
 import com.nest.dto.HouseQueryDTO;
@@ -85,10 +86,14 @@ public class HouseServiceImpl implements HouseService {
         log.info("房源更新: id={}", houseId);
     }
 
-    /** 上架/下架房源（房东端）。status: 1=上架, 0=下架。 */
+    /** 上下架/重新发布（房东端）。status: 1=上架, 0=下架；在租中(2) 不允许手动改。 */
     @Override
     public void updateStatus(Long houseId, Integer status) {
         validateOwnership(houseId);
+        House cur = houseMapper.selectById(houseId);
+        if (cur != null && cur.getStatus() != null && cur.getStatus() == HouseStatus.RENTED) {
+            throw new BusinessException(MessageConstant.HOUSE_RENTED_NO_MANUAL);
+        }
         houseMapper.updateStatus(houseId, status);
         log.info("房源状态变更: id={}, status={}", houseId, status);
     }
@@ -163,7 +168,8 @@ public class HouseServiceImpl implements HouseService {
     @Override
     public HouseVO detail(Long houseId) {
         House house = houseMapper.selectById(houseId);
-        if (house == null || house.getStatus() == 0) {
+        // 公开端只允许查看上架中房源(下架/在租中均不可见)
+        if (house == null || house.getStatus() != 1) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
         }
 

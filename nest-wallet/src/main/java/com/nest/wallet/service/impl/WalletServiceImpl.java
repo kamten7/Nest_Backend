@@ -17,6 +17,7 @@ import com.nest.vo.WalletVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,15 @@ public class WalletServiceImpl implements WalletService {
 
     @Autowired(required = false)
     LockedAmountProvider lockedAmountProvider;
+
+    /**
+     * 模拟充值开关（默认关闭）。
+     * <p>recharge 目前是「直接给余额加钱」的模拟实现，没有支付回调、没有幂等键 ⇒
+     * 生产环境开着等于任何人都能凭空造钱。因此默认关闭，只允许本地/测试显式打开。
+     * 接入真实支付后应改为「下单 + 回调 + 幂等」链路。</p>
+     */
+    @Value("${nest.wallet.simulate-recharge-enabled:false}")
+    private boolean simulateRechargeEnabled;
 
 
     /** 按用户查询钱包，不存在则懒创建。 */
@@ -84,7 +94,13 @@ public class WalletServiceImpl implements WalletService {
     @Override
     @Transactional
     public WalletVO recharge(String userType, Long userId, BigDecimal amount) {
+        if (!simulateRechargeEnabled) {
+            log.warn("拒绝模拟充值：nest.wallet.simulate-recharge-enabled=false, userType={}, userId={}",
+                    userType, userId);
+            throw new BusinessException(MessageConstant.RECHARGE_DISABLED);
+        }
         checkAmount(amount);
+        checkRechargeAmount(amount);
         Wallet wallet = getByUser(userType, userId);
         checkUsable(wallet);
 
@@ -230,6 +246,14 @@ public class WalletServiceImpl implements WalletService {
     private void checkAmount(BigDecimal amount) {
         if (amount == null || amount.signum() <= 0) {
             throw new BusinessException(MessageConstant.WALLET_AMOUNT_INVALID);
+        }
+    }
+
+    /** 充值单笔上限校验（防止误输入或恶意构造天文数字）。 */
+    private void checkRechargeAmount(BigDecimal amount) {
+        if (amount.compareTo(WalletConstant.RECHARGE_AMOUNT_MAX) > 0) {
+            throw new BusinessException(MessageConstant.WALLET_AMOUNT_EXCEED
+                    + "（单笔上限 " + WalletConstant.RECHARGE_AMOUNT_MAX.stripTrailingZeros().toPlainString() + " 元）");
         }
     }
 

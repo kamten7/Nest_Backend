@@ -18,6 +18,7 @@ import com.nest.vo.TenantLoginVO;
 import com.nest.vo.TenantProfileVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,6 +37,12 @@ public class TenantServiceImpl implements TenantService {
     private final WxAuthService wxAuthService;
     private final WeChatProperties weChatProperties;
     private final MinioService minioService;
+
+    /**
+     * 手机号直登开关（默认关闭）。
+     */
+    @Value("${nest.auth.phone-login-enabled:false}")
+    private boolean phoneLoginEnabled;
 
     /** 租客登录（支持微信 code 或手机号）。 */
     @Override
@@ -64,6 +71,11 @@ public class TenantServiceImpl implements TenantService {
                 }
             }
         } else if (dto.getPhone() != null && !dto.getPhone().isEmpty()) {
+            // 手机号直登没有任何凭据校验，必须显式开启（仅限本地/测试环境）
+            if (!phoneLoginEnabled) {
+                log.warn("拒绝手机号直登：nest.auth.phone-login-enabled=false");
+                throw new BusinessException(MessageConstant.PHONE_LOGIN_DISABLED);
+            }
             tenant = tenantMapper.selectByPhone(dto.getPhone());
             if (tenant == null) {
                 throw new BusinessException("该手机号尚未注册，请先注册");
@@ -91,6 +103,11 @@ public class TenantServiceImpl implements TenantService {
     /** 租客注册（手机号）。 */
     @Override
     public TenantLoginVO register(TenantRegisterDTO dto) {
+        // 注册同样只认手机号、不要验证码 ⇒ 生产环境一并关闭（届时走微信登录自动建号）
+        if (!phoneLoginEnabled) {
+            log.warn("拒绝手机号注册：nest.auth.phone-login-enabled=false");
+            throw new BusinessException(MessageConstant.PHONE_LOGIN_DISABLED);
+        }
         Tenant exist = tenantMapper.selectByPhone(dto.getPhone());
         if (exist != null) {
             throw new BusinessException("该手机号已注册");

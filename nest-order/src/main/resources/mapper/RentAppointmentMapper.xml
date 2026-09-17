@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.order.mapper.RentAppointmentMapper">
+
+    <!-- 确认租房成功后：已看房(3) → 已成交(5)。
+         条件更新，重复调用影响行数为 0；不加条件会有把已取消(4)的预约也改成已成交的风险。 -->
+    <update id="markDealIfVisited">
+        UPDATE appointment
+        SET status = 5,
+            update_time = NOW()
+        WHERE id = #{appointmentId}
+          AND status = 3
+    </update>
+
+    <!-- 放弃租房：已成交(5) → 已取消(4)。条件更新，重复调用影响行数为 0。 -->
+    <update id="markCancelledIfDeal">
+        UPDATE appointment
+        SET status = 4,
+            cancel_reason = #{reason},
+            update_time = NOW()
+        WHERE id = #{appointmentId}
+          AND status = 5
+    </update>
+
+</mapper>
