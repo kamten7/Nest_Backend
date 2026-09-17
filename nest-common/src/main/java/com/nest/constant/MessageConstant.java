@@ -26,6 +26,7 @@ public final class MessageConstant {
     public static final String MAP_PARAM_INVALID = "地图查询参数无效，请提供经纬度范围或中心点加半径";
     public static final String AI_NOT_LOGIN = "抱歉，请先登录后再使用AI助手";
     public static final String AI_SERVICE_ERROR = "抱歉，AI 服务暂时不可用，请稍后再试";
+    public static final String AI_MEMORY_CLEARED = "对话已清空";
     public static final String REVIEW_DUPLICATE = "您已评价过该房源，请勿重复评价";
     public static final String REVIEW_NOT_FOUND = "评论不存在";
     public static final String REVIEW_COMMENT_NOT_FOUND = "回复不存在";
