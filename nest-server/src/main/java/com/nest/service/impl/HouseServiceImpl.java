@@ -5,6 +5,7 @@ import com.github.pagehelper.PageInfo;
 import com.nest.common.BaseContext;
 import com.nest.common.PageResult;
 import com.nest.constant.HouseStatus;
+import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
 import com.nest.dto.HouseCreateDTO;
 import com.nest.dto.HouseQueryDTO;
@@ -20,6 +21,7 @@ import com.nest.mapper.HouseTagMapper;
 import com.nest.mapper.LandlordMapper;
 import com.nest.service.HouseService;
 import com.nest.minio.service.MinioService;
+import com.nest.order.mapper.RentOrderMapper;
 import com.nest.utils.GeoUtils;
 import com.nest.vo.HouseMarkerVO;
 import com.nest.vo.HouseVO;
@@ -46,6 +48,7 @@ public class HouseServiceImpl implements HouseService {
     private final HouseTagMapper houseTagMapper;
     private final LandlordMapper landlordMapper;
     private final MinioService minioService;
+    private final RentOrderMapper rentOrderMapper;
 
     /** 创建房源（房东端）。 */
     @Override
@@ -98,11 +101,30 @@ public class HouseServiceImpl implements HouseService {
         log.info("房源状态变更: id={}, status={}", houseId, status);
     }
 
-    /** 删除房源（房东端）。先删子表再删主表，同一事务内。 */
+    /**
+     * 删除房源（房东端）。先删子表再删主表，同一事务内。
+     *
+     * <p><b>在租中的房源不允许删除</b>：只要房源处于「在租中」，或名下还有未终结的订单
+     * （待缴押金 1 / 租房中 2 / 退租申请中 3），一律拒绝。否则 {@code rent_order} 会指向一个
+     * 不存在的 house —— 订单详情/列表的标题与封面变 null，而押金锁定金额仍按订单状态 2/3
+     * 计算，出现「钱还锁着、房子却没了」的脱节状态，且租客侧无法自行恢复。
+     * 房东想删房必须先走完退租（或让租客放弃租房）。
+     */
     @Override
     @Transactional
     public void delete(Long houseId) {
         validateOwnership(houseId);
+
+        House cur = houseMapper.selectById(houseId);
+        boolean renting = cur != null && cur.getStatus() != null
+                && cur.getStatus() == HouseStatus.RENTED;
+        int activeOrders = rentOrderMapper.countActiveByHouse(houseId);
+        if (renting || activeOrders > 0) {
+            log.warn("拒绝删除房源（存在未终结的租赁关系）: id={}, status={}, activeOrders={}",
+                    houseId, cur == null ? null : cur.getStatus(), activeOrders);
+            throw new BusinessException(MessageConstant.HOUSE_RENTED_CANNOT_DELETE);
+        }
+
         houseImageMapper.deleteByHouseId(houseId);
         houseTagMapper.deleteByHouseId(houseId);
         houseMapper.deleteById(houseId);
@@ -164,12 +186,21 @@ public class HouseServiceImpl implements HouseService {
         return PageResult.of(pageInfo.getTotal(), vos);
     }
 
-    /** 房源详情（用户端，公开）。只允许查看已上架房源，每次访问浏览量+1。 */
+    /**
+     * 房源详情（用户端，可选认证）。
+     *
+     * <p>默认只允许查看已上架房源；但**租过这套房的租客（含已退租）可以回看**——
+     * 退租结算会把房源打回「下架」，若不放开，退租租客就再也进不来房源页看评论、追评了。
+     */
     @Override
     public HouseVO detail(Long houseId) {
         House house = houseMapper.selectById(houseId);
-        // 公开端只允许查看上架中房源(下架/在租中均不可见)
-        if (house == null || house.getStatus() != 1) {
+        Long currentId = BaseContext.getCurrentId();
+        boolean rentedByMe = currentId != null
+                && JwtConstant.TYPE_TENANT.equals(BaseContext.getCurrentType())
+                && rentOrderMapper.countByTenantAndHouse(currentId, houseId) > 0;
+
+        if (house == null || (house.getStatus() != 1 && !rentedByMe)) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
         }
 

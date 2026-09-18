@@ -177,22 +177,55 @@ backend/
 
 ## 🚀 启动说明
 
+仓库里只放**模板文件**（`*-example.yml`），真实配置由你自己填、且不进仓库。
+统一规则：**复制模板 → 填值 → 删掉模板 → 启动**。
+
+### 第 1 步：准备中间件（两条路，选一条）
+
+**A. 用 Docker 起中间件（推荐，一步到位）**
+
 ```bash
-# 1. 启动基础设施（MySQL 3309 / Redis 6381 / MinIO 9012，编排文件在上级目录）
-cd .. && docker compose up -d && cd backend
+# 1) 复制模板为正式文件
+cp docker-compose-example.yml docker-compose.yml
 
-# 2. 建库建表（脚本内含 18 张表与房东种子数据）
-#    数据卷首次初始化时会自动执行；若库已存在，手动执行下面这条
-docker exec -i nest_mysql mysql -uroot -p'<密码>' --default-character-set=utf8mb4 < sql/nest_rent.sql
+# 2) 打开 docker-compose.yml，把 <你的MySQL-root密码> 换成自己的密码
 
-# 3. 生成本地配置（该文件已被 gitignore，需自行填入数据库 / Redis / MinIO / AI Key / 微信凭证）
-cp nest-server/src/main/resources/application-dev.yml.example \
+# 3) 删掉模板即完成配置
+rm docker-compose-example.yml
+
+# 4) 启动容器（首次会自动执行 sql/nest_rent.sql：建好 19 张表 + 灌入房东种子数据）
+docker compose up -d
+```
+
+**B. 用本机已装好的 MySQL / Redis / MinIO**
+不需要 `docker-compose.yml`，跳过 A，直接做第 2 步（注意端口换成 MySQL `3306` / Redis `6379` / MinIO `9000`）。
+
+### 第 2 步：配置后端
+
+```bash
+# 1) 复制模板为正式文件（application-dev.yml 已被 gitignore，不会进仓库）
+cp nest-server/src/main/resources/application-dev-example.yml \
    nest-server/src/main/resources/application-dev.yml
 
-# 4. 构建并启动
+# 2) 填值：MySQL 密码必填；Redis / MinIO / AI Key / 微信凭证按需填
+#    走 A 方案时，这里的数据库密码要与 docker-compose.yml 的 MYSQL_ROOT_PASSWORD 一致
+
+# 3) 删掉模板即完成配置
+rm nest-server/src/main/resources/application-dev-example.yml
+```
+
+### 第 3 步：构建并启动
+
+```bash
 mvn clean install -DskipTests
 cd nest-server && mvn spring-boot:run
 ```
+
+> 需要清库重来时再手动跑（⚠️ 该脚本自带 `DROP DATABASE`，会删库重建、数据不可逆）：
+>
+> ```bash
+> docker exec -i nest_mysql mysql -uroot -p'<你的密码>' --default-character-set=utf8mb4 < sql/nest_rent.sql
+> ```
 
 启动后：
 

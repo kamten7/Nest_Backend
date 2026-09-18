@@ -30,7 +30,6 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/user/tenant/login",
                         "/user/tenant/register",
                         "/user/house/list",
-                        "/user/house/detail/**",
                         "/user/house/map"
                 );
     }

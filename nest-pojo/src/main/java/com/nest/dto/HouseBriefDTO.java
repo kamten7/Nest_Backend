@@ -13,4 +13,6 @@ public class HouseBriefDTO {
     private String houseCover;
     private BigDecimal housePrice;
     private BigDecimal houseDeposit;
+    /** 房东昵称（订单页展示「房东信息 / 联系房东」用） */
+    private String landlordName;
 }

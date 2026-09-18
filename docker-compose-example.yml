@@ -1,0 +1,120 @@
+# ============================================================
+# Nest 后端 · Docker 中间件部署模板
+# ------------------------------------------------------------
+# 用途：一键启动 MySQL / Redis / MinIO 三个中间件容器，并在首次启动时
+#       自动执行 sql/nest_rent.sql，建好 19 张表 + 灌入房东种子数据。
+#
+# 使用三步：
+#   1. 复制成正式文件：
+#        cp docker-compose-example.yml docker-compose.yml
+#   2. 打开 docker-compose.yml，把 <尖括号占位符> 换成你自己的值
+#      （真正必须改的只有 MySQL root 密码，Redis / MinIO 用默认值即可跑通）
+#   3. 删掉本模板，然后启动：
+#        rm docker-compose-example.yml
+#        docker compose up -d
+#
+# ⚠️ 改完密码记得同步到后端配置 application-dev.yml 的 nest.datasource.password，
+#    两处必须一致，否则后端连不上库。
+#
+# ⚠️ 如果你不用 Docker、而是用本机已装好的 MySQL / Redis / MinIO，
+#    则完全不需要本文件，直接改后端配置模板即可：
+#        nest-server/src/main/resources/application-dev-example.yml
+# ============================================================
+
+name: nest          # 项目名，决定容器与数据卷的前缀；一般不用改
+
+services:
+  # ==================== MySQL 8.0 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: nest_mysql
+    ports:
+      - "3309:3306"                     # 宿主机端口 : 容器端口；3309 可改成 3306 等空闲端口
+    environment:
+      # 🔴 唯一必改项：换成你自己的 MySQL root 密码
+      MYSQL_ROOT_PASSWORD: "<你的MySQL-root密码>"
+      MYSQL_DATABASE: nest_rent
+    volumes:
+      - nest-mysql-data:/var/lib/mysql
+      # 首次初始化（数据卷为空）时自动执行：建库建表 + 灌房东种子
+      # 路径相对本文件所在目录，即 backend/sql/nest_rent.sql
+      - ./sql/nest_rent.sql:/docker-entrypoint-initdb.d/01-nest_rent.sql:ro
+    # 字符集/排序规则与 sql/nest_rent.sql 保持一致（MySQL 8 默认 utf8mb4）
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nest-net
+
+  # ==================== Redis 7 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: nest_redis
+    ports:
+      - "6381:6379"                     # 宿主机 6381（避开本机可能已占用的 6379）
+    # 默认密码 123456；改了要同步到 application-dev.yml 的 spring.data.redis.password
+    command: redis-server --requirepass 123456 --port 6379
+    volumes:
+      - nest-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-net
+
+  # ==================== MinIO（S3 兼容对象存储） ====================
+  minio:
+    image: minio/minio:latest
+    container_name: nest_minio
+    ports:
+      - "9012:9000"                     # S3 API
+      - "9013:9001"                     # Web 控制台
+    environment:
+      # 默认账号口令均为 minioadmin；改了要同步到 application-dev.yml 的 nest.minio.*
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    command: server /data --console-address ":9001"
+    volumes:
+      - nest-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-net
+
+  # ==================== MinIO 初始化：自动创建 bucket ====================
+  minio-init:
+    image: minio/mc:latest
+    container_name: nest_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    # 建两个 bucket 并设为匿名可读（前端 <img> 直接引用对象地址，权限必须是 public）
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/nest-rent;
+      mc mb --ignore-existing local/nest-avatar;
+      mc anonymous set download local/nest-rent;
+      mc anonymous set download local/nest-avatar;
+      echo '>>> MinIO bucket nest-rent / nest-avatar 创建完成（均为匿名可读，前端 img 可直连）';
+      exit 0;
+      "
+    networks:
+      - nest-net
+
+networks:
+  nest-net:
+    name: nest_net
+
+volumes:
+  nest-mysql-data:
+  nest-redis-data:
+  nest-minio-data:

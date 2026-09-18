@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /** 房东端聊天接口。 */
 @Slf4j
 @RestController
@@ -63,5 +65,19 @@ public class ChatAdminController {
         long count = chatService.getUnreadCount(
                 JwtConstant.TYPE_LANDLORD, BaseContext.getCurrentId());
         return Result.success(count);
+    }
+
+    /** 找或创建与某租客的会话（房东从订单页主动联系租客的入口） */
+    @PostMapping("/create")
+    @Operation(summary = "创建会话", description = "找或创建与某租客的会话，返回会话 ID")
+    public Result<Long> create(@RequestBody Map<String, Object> body) {
+        Object otherId = body.get("otherId");
+        if (otherId == null) {
+            return Result.error("otherId 不能为空");
+        }
+        Long conversationId = chatService.getOrCreateConversationId(
+                JwtConstant.TYPE_LANDLORD, BaseContext.getCurrentId(),
+                JwtConstant.TYPE_TENANT, Long.valueOf(otherId.toString()));
+        return Result.success(conversationId);
     }
 }

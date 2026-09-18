@@ -32,6 +32,16 @@ public final class MessageConstant {
     public static final String REVIEW_COMMENT_NOT_FOUND = "回复不存在";
     public static final String REVIEW_NOT_OWNER = "不是您的评论，无权操作";
     public static final String REVIEW_LIKE_DUPLICATE = "不能重复点赞";
+    /** 评论内容为空 */
+    public static final String REVIEW_CONTENT_EMPTY = "评论内容不能为空";
+    /** 评论内容过长 */
+    public static final String REVIEW_CONTENT_TOO_LONG = "评论内容长度不能超过 500 个字符";
+    /** 评分超出范围 */
+    public static final String REVIEW_RATING_INVALID = "评分必须是 1-5 分";
+    /** 房源下架且本人未租过，禁止发评论 */
+    public static final String REVIEW_HOUSE_FORBIDDEN = "该房源已下架，只有租住过的用户才能发表评论";
+    /** 被回复的评论不属于当前房源 */
+    public static final String REVIEW_PARENT_NOT_FOUND = "被回复的评论不存在";
     public static final String CONVERSATION_NOT_FOUND = "会话不存在";
     public static final String MESSAGE_SEND_FAILED = "消息发送失败";
     public static final String MESSAGE_CONTENT_EMPTY = "消息内容不能为空";
@@ -70,6 +80,8 @@ public final class MessageConstant {
     public static final String HOUSE_NOT_RENTABLE = "该房源已被租出或已下架，无法确认租房";
     /** 房源在租中，房东不能手动改状态 */
     public static final String HOUSE_RENTED_NO_MANUAL = "房源在租中，无法手动上下架，请先完成退租";
+    /** 房源在租中或仍有未终结的租房订单，房东不能删除 */
+    public static final String HOUSE_RENTED_CANNOT_DELETE = "房源在租中或仍有未完成的租房订单，无法删除，请先完成退租或取消订单";
     /** 仅待缴押金的订单可放弃租房 */
     public static final String RENT_ORDER_CANNOT_CANCEL = "仅待缴押金的订单可放弃租房";
 }

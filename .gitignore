@@ -1,4 +1,6 @@
+# 本地真实配置：不进仓库，只上传对应的 *-example.yml 模板
 **/application-dev.yml
+docker-compose.yml
 target/
 *.class
 *.jar

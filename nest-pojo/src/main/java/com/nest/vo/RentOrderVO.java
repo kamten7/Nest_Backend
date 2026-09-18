@@ -16,6 +16,11 @@ public class RentOrderVO {
     private Long houseId;
     private String houseTitle;
     private String houseCover;
+    /** 房东 / 租客身份，供订单页「联系房东」「联系租客」入口使用 */
+    private Long landlordId;
+    private String landlordName;
+    private Long tenantId;
+    private String tenantName;
     private BigDecimal deposit;
     private BigDecimal monthlyRent;
     private Integer status;

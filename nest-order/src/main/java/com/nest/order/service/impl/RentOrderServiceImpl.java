@@ -13,6 +13,7 @@ import com.nest.constant.RentOrderStatus;
 import com.nest.constant.WalletConstant;
 import com.nest.dto.HouseBriefDTO;
 import com.nest.dto.RentSourceDTO;
+import com.nest.dto.TenantBriefDTO;
 import com.nest.entity.RentOrder;
 import com.nest.entity.RentPayment;
 import com.nest.entity.RentReminderLog;
@@ -573,9 +574,28 @@ public class RentOrderServiceImpl implements RentOrderService {
     /** 单个订单的完整详情（缴费记录 + 退租信息）。 */
     private RentOrderVO detailVO(RentOrder order) {
         HouseBriefDTO house = houseBriefOf(order.getHouseId());
-        return buildVO(order, house,
+        RentOrderVO vo = buildVO(order, house,
                 rentPaymentMapper.selectByOrder(order.getId()),
                 rentTerminationMapper.selectByOrderId(order.getId()));
+        fillTenantNames(Collections.singletonList(vo));
+        return vo;
+    }
+
+    /** 补租客昵称（批量查，避免 N+1）。房东侧订单页展示租客与「联系租客」入口用。 */
+    private void fillTenantNames(List<RentOrderVO> vos) {
+        Set<Long> tenantIds = vos.stream()
+                .map(RentOrderVO::getTenantId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (tenantIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> nameMap = rentSourceMapper.selectTenantBriefByIds(tenantIds).stream()
+                .collect(Collectors.toMap(TenantBriefDTO::getTenantId,
+                        t -> t.getTenantName() == null ? "租客" : t.getTenantName(), (a, b) -> a));
+        vos.stream()
+                .filter(v -> v.getTenantId() != null)
+                .forEach(v -> v.setTenantName(nameMap.getOrDefault(v.getTenantId(), "租客")));
     }
 
     private HouseBriefDTO houseBriefOf(Long houseId) {
@@ -586,7 +606,7 @@ public class RentOrderServiceImpl implements RentOrderService {
         return list.isEmpty() ? null : list.get(0);
     }
 
-    /** 列表批量组装（房源标题/封面一次查完，避免 N+1）。 */
+    /** 列表批量组装（房源标题/封面/房东名一次查完，避免 N+1）。 */
     private List<RentOrderVO> toVOs(List<RentOrder> orders) {
         if (orders == null || orders.isEmpty()) {
             return Collections.emptyList();
@@ -604,6 +624,7 @@ public class RentOrderServiceImpl implements RentOrderService {
         for (RentOrder order : orders) {
             vos.add(buildVO(order, houseMap.get(order.getHouseId()), null, null));
         }
+        fillTenantNames(vos);
         return vos;
     }
 
@@ -615,6 +636,9 @@ public class RentOrderServiceImpl implements RentOrderService {
         vo.setHouseId(order.getHouseId());
         vo.setHouseTitle(house == null ? null : house.getHouseTitle());
         vo.setHouseCover(house == null ? null : house.getHouseCover());
+        vo.setLandlordId(order.getLandlordId());
+        vo.setLandlordName(house == null ? null : house.getLandlordName());
+        vo.setTenantId(order.getTenantId());
         vo.setDeposit(nullToZero(order.getDeposit()));
         vo.setMonthlyRent(nullToZero(order.getMonthlyRent()));
         vo.setStatus(order.getStatus());

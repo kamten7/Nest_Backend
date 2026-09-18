@@ -14,6 +14,7 @@ import com.nest.wallet.mapper.WalletMapper;
 import com.nest.wallet.mapper.WalletTransactionMapper;
 import com.nest.wallet.service.impl.WalletServiceImpl;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +23,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -53,6 +55,29 @@ class WalletServiceImplTest {
 
     @InjectMocks
     private WalletServiceImpl walletService;
+
+    /**
+     * 模拟充值开关默认是 false（生产必须如此，见 nest.wallet.simulate-recharge-enabled）。
+     * 纯单测不起 Spring，@Value 不生效 ⇒ 这里显式打开，让原有的 recharge 成功路径用例仍可验证。
+     */
+    @BeforeEach
+    void enableSimulateRecharge() {
+        ReflectionTestUtils.setField(walletService, "simulateRechargeEnabled", true);
+    }
+
+    @Test
+    @DisplayName("充值开关关闭时：直接拒绝，且不碰任何 mapper（零副作用）")
+    void recharge_whenDisabled_throwsAndTouchesNothing() {
+        ReflectionTestUtils.setField(walletService, "simulateRechargeEnabled", false);
+
+        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("100.00")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.RECHARGE_DISABLED);
+
+        // 开关是"安全默认"：必须在最前面拦住，连钱包都不该去查
+        verify(walletMapper, never()).selectByUser(any(), any());
+        verify(walletTransactionMapper, never()).insert(any());
+    }
 
     @AfterEach
     void clearPageHelper() {

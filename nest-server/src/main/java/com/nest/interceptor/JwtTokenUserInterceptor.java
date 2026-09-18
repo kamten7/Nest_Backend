@@ -58,9 +58,12 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
         }
     }
 
-    /** 可选认证路径：公开但若带 token 则解析用户身份。 */
+    /** 可选认证路径：公开但若带 token 则解析用户身份。
+     *  - /user/review/house/**：评论列表公开，带 token 才能回显点赞状态
+     *  - /user/house/detail/**：房源详情公开，带 token 才能识别「这是租过这套房的租客」，
+     *    从而允许其查看已下架/在租中的房源（退租后回来看评论、追评） */
     private boolean isOptionalAuthPath(String uri) {
-        return uri.startsWith("/user/review/house/");
+        return uri.startsWith("/user/review/house/") || uri.startsWith("/user/house/detail/");
     }
 
     /** 请求完成清理 ThreadLocal，防止线程复用串号。 */

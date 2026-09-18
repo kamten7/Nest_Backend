@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 
@@ -54,6 +55,8 @@ class WalletLockedWithdrawTest {
     @BeforeEach
     void injectOptionalProvider() {
         walletService.lockedAmountProvider = lockedAmountProvider;
+        // recharge 的模拟充值开关默认 false（生产默认），本类只需它的成功路径 ⇒ 显式打开
+        ReflectionTestUtils.setField(walletService, "simulateRechargeEnabled", true);
     }
 
 

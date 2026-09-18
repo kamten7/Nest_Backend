@@ -7,13 +7,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-/** 发表评论请求体 */
+/** 发表评论请求体。rating 可为空：退租租客发「评价」带星级，看房用户发「评论」可不打分。
+ *  @Min/@Max 对 null 天然放行，因此无需 @NotNull。 */
 @Data
 public class ReviewCreateDTO {
 
     @NotNull(message = "房源 ID 不能为空")
     private Long houseId;
-    @NotNull(message = "评分不能为空")
+    /** 评分 1-5，可为空（空 = 纯评论/提问，不计入平均分） */
     @Min(value = 1, message = "评分范围为 1-5")
     @Max(value = 5, message = "评分范围为 1-5")
     private Integer rating;

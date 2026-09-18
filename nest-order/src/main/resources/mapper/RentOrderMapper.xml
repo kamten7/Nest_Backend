@@ -38,6 +38,18 @@
         ORDER BY id DESC
     </select>
 
+    <select id="countByTenantAndHouse" resultType="int">
+        SELECT COUNT(*) FROM rent_order
+        WHERE tenant_id = #{tenantId} AND house_id = #{houseId}
+    </select>
+
+    <!-- 该房源下进行中的订单数：1 待缴押金 / 2 租房中 / 3 退租申请中。
+         4 已退租、5 已取消均属终态，不再占用房源，因此不参与计数。 -->
+    <select id="countActiveByHouse" resultType="int">
+        SELECT COUNT(*) FROM rent_order
+        WHERE house_id = #{houseId} AND status IN (1, 2, 3)
+    </select>
+
     <!-- 缴押金：1 待缴押金 → 2 租房中（条件更新，重复缴纳时影响行数为 0） -->
     <update id="activateAfterDeposit">
         UPDATE rent_order

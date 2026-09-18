@@ -4,8 +4,8 @@
 <mapper namespace="com.nest.mapper.ReviewMapper">
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO review (tenant_id, house_id, rating, content, create_time)
-        VALUES (#{tenantId}, #{houseId}, #{rating}, #{content}, NOW())
+        INSERT INTO review (tenant_id, house_id, rating, content, like_count, create_time)
+        VALUES (#{tenantId}, #{houseId}, #{rating}, #{content}, 0, NOW())
     </insert>
 
     <select id="selectById" resultType="Review">
@@ -21,6 +21,7 @@
     <select id="selectByTenantAndHouse" resultType="Review">
         SELECT * FROM review
         WHERE tenant_id = #{tenantId} AND house_id = #{houseId}
+        ORDER BY create_time DESC
         LIMIT 1
     </select>
 
@@ -28,8 +29,27 @@
         SELECT COUNT(*) FROM review WHERE house_id = #{houseId}
     </select>
 
-    <select id="selectAvgRatingByHouse" resultType="java.math.BigDecimal">
-        SELECT COALESCE(AVG(rating), 0) FROM review WHERE house_id = #{houseId}
+    <!-- AVG/COUNT 天然忽略 NULL，因此未打分的纯评论不会拉低平均分、也不计入评分人数 -->
+    <select id="selectRatedCountByHouse" resultType="long">
+        SELECT COUNT(rating) FROM review WHERE house_id = #{houseId}
     </select>
+
+    <select id="selectAvgRatingByHouse" resultType="java.math.BigDecimal">
+        SELECT ROUND(COALESCE(AVG(rating), 0), 1) FROM review WHERE house_id = #{houseId}
+    </select>
+
+    <update id="incrementLikeCount">
+        UPDATE review SET like_count = like_count + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decrementLikeCount">
+        UPDATE review
+        SET like_count = GREATEST(like_count - 1, 0)
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM review WHERE id = #{id}
+    </delete>
 
 </mapper>

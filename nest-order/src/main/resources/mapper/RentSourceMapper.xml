@@ -21,17 +21,28 @@
         WHERE a.id = #{appointmentId}
     </select>
 
-    <!-- 批量补房源标题/封面（列表与详情用，避免逐条查询） -->
+    <!-- 批量补房源标题/封面/房东名（列表与详情用，避免逐条查询） -->
     <select id="selectHouseBriefByIds" resultType="com.nest.dto.HouseBriefDTO">
         SELECT h.id          AS houseId,
                h.title       AS houseTitle,
                h.price       AS housePrice,
                h.deposit     AS houseDeposit,
-               hi.url        AS houseCover
+               hi.url        AS houseCover,
+               l.name        AS landlordName
         FROM house h
         LEFT JOIN house_image hi ON hi.house_id = h.id AND hi.is_cover = 1
+        LEFT JOIN landlord l ON l.id = h.landlord_id
         WHERE h.id IN
         <foreach collection="houseIds" item="hid" open="(" separator="," close=")">#{hid}</foreach>
+    </select>
+
+    <!-- 批量补租客昵称（房东侧订单页「联系租客」用） -->
+    <select id="selectTenantBriefByIds" resultType="com.nest.dto.TenantBriefDTO">
+        SELECT t.id       AS tenantId,
+               t.nickname AS tenantName
+        FROM tenant t
+        WHERE t.id IN
+        <foreach collection="tenantIds" item="tid" open="(" separator="," close=")">#{tid}</foreach>
     </select>
 
     <!-- 确认租房前置校验：取租客绑定的手机号（未绑定返回 null） -->

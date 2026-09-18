@@ -1,0 +1,105 @@
+# ============================================================
+# Nest 租房平台 · 开发环境配置模板
+# ------------------------------------------------------------
+# 使用三步：
+#   1. 复制成正式文件（就在本目录下）：
+#        cp application-dev-example.yml application-dev.yml
+#   2. 打开 application-dev.yml，把 <尖括号占位符> 换成你自己的值
+#   3. 删掉本模板，即完成配置：
+#        rm application-dev-example.yml
+#
+# ⚠️ application-dev.yml 已被 .gitignore 忽略、不会进仓库，
+#    所以数据库密码、API Key 这类敏感信息直接写进去即可，不需要再建 .env 文件。
+#
+# ⚠️ 端口按你的中间件来源二选一（本模板默认按 Docker 那套填好了）：
+#    · 用 docker-compose 起中间件（见 docker-compose-example.yml）
+#        → MySQL 3309 / Redis 6381 / MinIO 9012
+#    · 用本机自己装的中间件
+#        → MySQL 3306 / Redis 6379 / MinIO 9000
+# ============================================================
+
+nest:
+  # JWT 双通道密钥：租客端、房东端各一把，服务端用两把独立密钥签发与校验，必须不同
+  # 建议填 32 位以上的随机字符串
+  jwt:
+    admin-secret-key: "<房东端JWT密钥>"
+    user-secret-key: "<租客端JWT密钥>"
+
+  # ===== MySQL =====
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: localhost
+    port: 3309                          # 本机自装 MySQL 通常为 3306
+    database: nest_rent
+    username: root
+    # 🔴 必改：用 Docker 部署时必须与 docker-compose.yml 里的 MYSQL_ROOT_PASSWORD 完全一致
+    password: "<你的MySQL-root密码>"
+
+  # ===== MinIO 对象存储（房源图片 / 用户头像，双 bucket） =====
+  minio:
+    endpoint: http://localhost:9012     # 本机自装 MinIO 通常为 http://localhost:9000
+    access-key: "minioadmin"
+    secret-key: "minioadmin"
+    bucket: nest-rent
+    avatar-bucket: nest-avatar          # 用户头像专用 bucket，不存在会自动创建
+
+  # ===== 微信小程序登录 =====
+  # mock-enabled=true：完全不调用微信，openid 固定取 mock-openid，本地反复登录=同一个租客，最省事
+  # 想走真实登录：mock-enabled 改 false，且 appid/secret 必须与小程序 AppID 完全一致
+  #              （不一致时 jscode2session 会返回 40013 / 40029）
+  wechat:
+    appid: "<小程序AppID，形如 wx1234567890abcdef>"
+    secret: "<小程序AppSecret>"
+    mock-enabled: true
+    mock-openid: nest_dev_tenant
+
+  # ⚠️ 仅本地联调用：手机号直接登录/注册（不校验验证码）。生产必须 false
+  auth:
+    phone-login-enabled: true
+
+  # ⚠️ 仅本地联调用：模拟充值（无幂等、不接支付）。生产必须 false
+  wallet:
+    simulate-recharge-enabled: true
+
+  # ===== AI（LangChain4j 真实 Function Calling，找房 Agent） =====
+  # 不填 Key 时只有 AI 找房不可用，其它接口不受影响；两家都指向硅基流动即可
+  ai:
+    admin:
+      base-url: https://api.siliconflow.cn/v1
+      api-key: "<硅基流动API Key（房东端）>"
+      model-name: deepseek-ai/DeepSeek-V3
+      temperature: 0.1
+    user:
+      base-url: https://api.siliconflow.cn/v1
+      api-key: "<硅基流动API Key（租客端）>"
+      model-name: deepseek-ai/DeepSeek-V3
+      temperature: 0.7
+
+  # ===== 聊天长连接 =====
+  websocket:
+    implementation: netty               # jsr356 | netty
+    netty:
+      port: 8081                        # 与 HTTP 8080 不同端口，别占用
+
+  contract:
+    template-path: classpath:contract-templates/
+
+  # ===== 定时任务 cron（6 段：秒 分 时 日 月 周） =====
+  inspection:
+    reminder-cron: 0 0 9 * * ?
+  rent:
+    reminder-cron: 0 0 10 * * ?         # 缴租提醒
+    refund-cron: 0 0 11 * * ?           # 超期未结算，自动退还押金
+
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6381                        # 本机自装 Redis 通常为 6379
+      password: "123456"                # 与 docker-compose.yml 里 --requirepass 保持一致
+      timeout: 1000
+      lettuce:
+        pool:
+          min-idle: 1
+          max-active: 8
+          max-wait: 3000

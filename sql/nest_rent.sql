@@ -2,12 +2,12 @@
 -- Nest 租房平台 — 数据库初始化脚本（完整版）
 -- ------------------------------------------------------------
 -- 用途：全新库一键初始化（删库后重建）。执行本文件即可得到
---       全部 18 张表 + 房东种子数据，无需再跑其它脚本。
+--       全部 19 张表 + 房东种子数据，无需再跑其它脚本。
 --
 -- 包含：
---   基础业务（12 张）：landlord / tenant / house / house_image / house_tag /
---                      favorite / appointment / review / review_comment /
---                      review_comment_like / conversation / message
+--   基础业务（13 张）：landlord / tenant / house / house_image / house_tag /
+--                      favorite / appointment / review / review_like /
+--                      review_comment / review_comment_like / conversation / message
 --   钱包与租房（6 张）：wallet / wallet_transaction / rent_order /
 --                      rent_payment / rent_termination / rent_reminder_log
 --
@@ -17,11 +17,21 @@
 -- 约定：
 --   * 字符集统一 utf8mb4 / 排序规则 utf8mb4_0900_ai_ci（MySQL 8 默认）。
 --   * 表之间为「逻辑外键」，不建物理 FOREIGN KEY 约束（由应用层保证一致性）。
---   * 全部 CREATE TABLE IF NOT EXISTS + INSERT IGNORE，可重复执行（幂等）。
-
+--   * 建表与种子部分全部 CREATE TABLE IF NOT EXISTS + INSERT IGNORE，可重复执行。
+--
+-- ⚠️⚠️ 但本脚本【整体不是幂等的，且会销毁数据】—— 请看清下面这一行 ⚠️⚠️
 -- ------------------------------------------------------------
--- （可选）想「彻底重建」——把下面这行的注释去掉再执行。
--- ⚠️ 会删掉整个 nest_rent 库及其全部数据，仅确认无需保留时使用！
+-- 下面这句 `DROP DATABASE IF EXISTS nest_rent;` 是【生效】的：
+--     执行本文件 = 先删掉整个 nest_rent 库（含全部业务数据）再重建空表。
+--     这正是「全新库初始化」的设计意图，但也意味着
+--     在已有数据的库上执行 = 【数据不可逆丢失】。
+--
+--    · 仅在确认「这个库可以整个丢弃」时执行本文件；
+--    · 已有数据的库要改结构，请跑 sql/migration_*.sql 增量脚本，不要跑本文件；
+--    · 本文件已挂进 docker-compose 的 docker-entrypoint-initdb.d，触发条件是
+--      「数据卷为空」（即首次初始化）—— 那种场景本来就无数据可丢，属预期用法。
+--    · 若不希望带删除效果：把下面这行改成 `-- DROP DATABASE IF EXISTS nest_rent;`，
+--      并在确需彻底重建时临时放开（此时需自行 SET NAMES utf8mb4 + CREATE DATABASE）。
 DROP DATABASE IF EXISTS nest_rent;
 
 SET NAMES utf8mb4;
@@ -144,20 +154,36 @@ CREATE TABLE IF NOT EXISTS appointment (
     KEY idx_house (house_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='预约看房表';
 
--- ==================== 房源评论表 ====================
+-- ==================== 房源评论表（顶楼帖：带星评价 或 无星纯评论） ====================
+-- ⚠️ rating 允许 NULL：退租租客发「评价」带星级，看房用户发「评论」可不打分；
+--    平均分只统计 rating 非 NULL 的行（COUNT/AVG 天然忽略 NULL）。
+-- ⚠️ 不做 (tenant_id, house_id) 唯一约束：同一用户可对同一房源多次发言/追问。
 CREATE TABLE IF NOT EXISTS review (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    tenant_id BIGINT NOT NULL COMMENT '评论者(租客)ID',
+    tenant_id BIGINT NOT NULL COMMENT '发帖用户(租客)ID',
     house_id BIGINT NOT NULL COMMENT '房源ID',
-    rating TINYINT NOT NULL COMMENT '评分 1-5',
+    rating TINYINT NULL COMMENT '评分 1-5（NULL=未打分的纯评论）',
     content TEXT COMMENT '评论内容',
+    like_count INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    UNIQUE KEY uk_tenant_house (tenant_id, house_id) COMMENT '每租客每房源限评一次',
     KEY idx_house (house_id),
-    KEY idx_tenant (tenant_id)
+    KEY idx_tenant (tenant_id),
+    KEY idx_house_time (house_id, create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='房源评论表';
 
+-- ==================== 顶楼评价点赞表 ====================
+CREATE TABLE IF NOT EXISTS review_like (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    review_id BIGINT NOT NULL COMMENT '评价ID',
+    user_type VARCHAR(10) NOT NULL COMMENT '点赞者类型 tenant/landlord',
+    user_id BIGINT NOT NULL COMMENT '点赞者ID',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_review_user (review_id, user_type, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='顶楼评价点赞表';
+
 -- ==================== 评论回复表 ====================
+-- user_type 区分回复者身份：tenant=租客 / landlord=房东（一个字段同时承载两种身份）
+-- parent_id 指向被回复的回复ID，支持「在别人评论下提问/追问」
 CREATE TABLE IF NOT EXISTS review_comment (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     review_id BIGINT NOT NULL COMMENT '所属评论ID',
@@ -167,16 +193,20 @@ CREATE TABLE IF NOT EXISTS review_comment (
     parent_id BIGINT DEFAULT NULL COMMENT '父回复ID(NULL=一级回复)',
     like_count INT DEFAULT 0 COMMENT '点赞数',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    KEY idx_review (review_id)
+    KEY idx_review (review_id),
+    KEY idx_review_time (review_id, create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='评论回复表(支持嵌套)';
 
 -- ==================== 评论回复点赞表 ====================
+-- ⚠️ 原来只存 tenant_id，房东点赞会被当成租客写入 ⇒ 租客 id=3 与房东 id=3 互相串赞；
+--    改造后以 (comment_id, user_type, user_id) 唯一。
 CREATE TABLE IF NOT EXISTS review_comment_like (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     comment_id BIGINT NOT NULL COMMENT '回复ID',
-    tenant_id BIGINT NOT NULL COMMENT '点赞用户ID',
+    user_type VARCHAR(10) NOT NULL COMMENT '点赞者类型 tenant/landlord',
+    user_id BIGINT NOT NULL COMMENT '点赞者ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    UNIQUE KEY uk_comment_tenant (comment_id, tenant_id)
+    UNIQUE KEY uk_comment_user (comment_id, user_type, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='评论回复点赞表';
 
 -- ==================== 会话表 ====================

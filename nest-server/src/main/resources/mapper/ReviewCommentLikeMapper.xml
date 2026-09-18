@@ -4,18 +4,35 @@
 <mapper namespace="com.nest.mapper.ReviewCommentLikeMapper">
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO review_comment_like (comment_id, tenant_id, create_time)
-        VALUES (#{commentId}, #{tenantId}, NOW())
+        INSERT INTO review_comment_like (comment_id, user_type, user_id, create_time)
+        VALUES (#{commentId}, #{userType}, #{userId}, NOW())
     </insert>
 
-    <delete id="deleteByCommentAndTenant">
-        DELETE FROM review_comment_like WHERE comment_id = #{commentId} AND tenant_id = #{tenantId}
+    <delete id="deleteByCommentAndUser">
+        DELETE FROM review_comment_like
+        WHERE comment_id = #{commentId} AND user_type = #{userType} AND user_id = #{userId}
     </delete>
 
-    <select id="selectByCommentAndTenant" resultType="ReviewCommentLike">
+    <select id="selectByCommentAndUser" resultType="ReviewCommentLike">
         SELECT * FROM review_comment_like
-        WHERE comment_id = #{commentId} AND tenant_id = #{tenantId}
+        WHERE comment_id = #{commentId} AND user_type = #{userType} AND user_id = #{userId}
         LIMIT 1
     </select>
+
+    <select id="selectByUserAndCommentIds" resultType="ReviewCommentLike">
+        SELECT * FROM review_comment_like
+        WHERE user_type = #{userType} AND user_id = #{userId}
+        AND comment_id IN
+        <foreach collection="commentIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+    </select>
+
+    <delete id="deleteByCommentIds">
+        DELETE FROM review_comment_like WHERE comment_id IN
+        <foreach collection="commentIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+    </delete>
 
 </mapper>

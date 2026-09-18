@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.ReviewLikeMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO review_like (review_id, user_type, user_id, create_time)
+        VALUES (#{reviewId}, #{userType}, #{userId}, NOW())
+    </insert>
+
+    <delete id="deleteByReviewAndUser">
+        DELETE FROM review_like
+        WHERE review_id = #{reviewId} AND user_type = #{userType} AND user_id = #{userId}
+    </delete>
+
+    <select id="selectByReviewAndUser" resultType="ReviewLike">
+        SELECT * FROM review_like
+        WHERE review_id = #{reviewId} AND user_type = #{userType} AND user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByUserAndReviewIds" resultType="ReviewLike">
+        SELECT * FROM review_like
+        WHERE user_type = #{userType} AND user_id = #{userId}
+        AND review_id IN
+        <foreach collection="reviewIds" item="rid" open="(" separator="," close=")">
+            #{rid}
+        </foreach>
+    </select>
+
+    <delete id="deleteByReviewId">
+        DELETE FROM review_like WHERE review_id = #{reviewId}
+    </delete>
+
+</mapper>

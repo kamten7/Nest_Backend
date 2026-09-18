@@ -28,6 +28,19 @@ public interface RentOrderMapper {
     /** 房东端订单列表（status 为空=全部） */
     List<RentOrder> selectByLandlord(@Param("landlordId") Long landlordId, @Param("status") Integer status);
 
+    /**
+     * 该租客在该房源下的订单数（任意状态）。
+     * 用于评论权限判定：房源已下架时，只有租过这套房的人（例如已退租要回来评价）才允许发评论。
+     */
+    int countByTenantAndHouse(@Param("tenantId") Long tenantId, @Param("houseId") Long houseId);
+
+    /**
+     * 该房源下「进行中」的订单数（待缴押金 1 / 租房中 2 / 退租申请中 3）。
+     * 用于房东删除房源前的租约校验：只要名下还有未终结的订单就不允许删除，
+     * 否则 rent_order.house_id 会悬空，押金锁定金额也会与房源状态脱节。
+     */
+    int countActiveByHouse(@Param("houseId") Long houseId);
+
     /** 缴押金成功：待缴押金(1) → 租房中(2)，并落起租日与首个待缴周期 */
     int activateAfterDeposit(@Param("id") Long id,
                              @Param("startDate") LocalDate startDate,

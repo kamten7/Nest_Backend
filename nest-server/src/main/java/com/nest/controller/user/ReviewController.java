@@ -28,14 +28,23 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     /**
-     * 发表评论（租客，一房一评）。
+     * 发表评论/评价。带 rating 为评价，不带为纯评论（同一用户可多次发表）。
      */
     @PostMapping
-    @Operation(summary = "发表评论", description = "租客对房源评分(1-5)+文字评论，每个租客每房源限评一次")
+    @Operation(summary = "发表评论", description = "对房源发表评论；rating 可选 1-5，不传即纯评论/提问")
     public Result<Long> create(@Valid @RequestBody ReviewCreateDTO dto) {
         log.info("发表评论: houseId={}, rating={}", dto.getHouseId(), dto.getRating());
         Long id = reviewService.createReview(dto.getHouseId(), dto.getRating(), dto.getContent());
-        return Result.success("评价成功", id);
+        return Result.success("发布成功", id);
+    }
+
+    /**
+     * 当前租客是否已评价过该房源（退租后弹评价用）。
+     */
+    @GetMapping("/mine/{houseId}")
+    @Operation(summary = "是否已评价该房源", description = "当前登录租客是否已对该房源发表过评论，退租后弹窗提示用")
+    public Result<Boolean> mine(@PathVariable Long houseId) {
+        return Result.success(reviewService.hasReviewed(houseId));
     }
 
     /**
@@ -53,12 +62,46 @@ public class ReviewController {
     }
 
     /**
+     * 点赞/取消点赞顶楼评价（可切换）。
+     */
+    @PostMapping("/{id}/like")
+    @Operation(summary = "评价点赞/取消赞", description = "body 传 liked: true 点赞 / false 取消")
+    public Result<Void> likeReview(@PathVariable Long id, @RequestBody(required = false) Map<String, Boolean> body) {
+        boolean liked = body != null && Boolean.TRUE.equals(body.get("liked"));
+        log.info("评价点赞切换: reviewId={}, liked={}", id, liked);
+        reviewService.likeReview(id, liked);
+        return Result.successMsg(liked ? "点赞成功" : "已取消点赞");
+    }
+
+    /**
+     * 删除自己发的评价（级联删掉其下回复与点赞）。
+     */
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除评价", description = "只能删除本人发表的评价，其下的回复与点赞一并删除")
+    public Result<Void> deleteReview(@PathVariable Long id) {
+        log.info("删除评价: reviewId={}", id);
+        reviewService.deleteReview(id);
+        return Result.successMsg("已删除");
+    }
+
+    /**
+     * 删除自己发的回复（级联删掉其下追问与点赞）。
+     */
+    @DeleteMapping("/comment/{id}")
+    @Operation(summary = "删除回复", description = "只能删除本人发表的回复，其下追问与点赞一并删除")
+    public Result<Void> deleteComment(@PathVariable Long id) {
+        log.info("删除回复: commentId={}", id);
+        reviewService.deleteComment(id);
+        return Result.successMsg("已删除");
+    }
+
+    /**
      * 回复评论（租客或房东）。
      */
     @PostMapping("/{id}/comment")
-    @Operation(summary = "回复评论", description = "租客或房东回复评论，支持嵌套")
+    @Operation(summary = "回复评论", description = "租客或房东回复评论，传 parentId 可在别人评论下追问，支持嵌套")
     public Result<Long> addComment(@PathVariable Long id, @Valid @RequestBody ReviewCommentDTO dto) {
-        log.info("回复评论: reviewId={}", id);
+        log.info("回复评论: reviewId={}, parentId={}", id, dto.getParentId());
         Long commentId = reviewService.addComment(id, dto.getContent(), dto.getParentId());
         return Result.success("回复成功", commentId);
     }
@@ -67,10 +110,10 @@ public class ReviewController {
      * 点赞/取消点赞（可切换）。
      */
     @PostMapping("/comment/{id}/like")
-    @Operation(summary = "点赞/取消赞", description = "body 传 liked: true 点赞 / false 取消")
-    public Result<Void> like(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+    @Operation(summary = "回复点赞/取消赞", description = "body 传 liked: true 点赞 / false 取消")
+    public Result<Void> like(@PathVariable Long id, @RequestBody(required = false) Map<String, Boolean> body) {
         boolean liked = body != null && Boolean.TRUE.equals(body.get("liked"));
-        log.info("评论点赞切换: commentId={}, liked={}", id, liked);
+        log.info("回复点赞切换: commentId={}, liked={}", id, liked);
         reviewService.likeComment(id, liked);
         return Result.successMsg(liked ? "点赞成功" : "已取消点赞");
     }
