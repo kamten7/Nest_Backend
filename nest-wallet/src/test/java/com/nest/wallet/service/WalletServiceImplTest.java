@@ -249,7 +249,8 @@ class WalletServiceImplTest {
     @DisplayName("提现：余额扣减并落一条 WITHDRAW 处理中支出流水")
     void withdraw_success_decreasesBalanceAndWritesPendingTxn() {
         givenWalletExists("100.00");
-        when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("30.00"))).thenReturn(1);
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "100.00", 1));
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("30.00"), BigDecimal.ZERO)).thenReturn(1);
 
         WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00"));
 
@@ -269,7 +270,8 @@ class WalletServiceImplTest {
     @DisplayName("提现：条件扣款影响行数为 0 时抛出余额不足，且绝不落流水")
     void withdraw_whenInsufficient_throwsAndWritesNoTxn() {
         givenWalletExists("5.00");
-        when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("30.00"))).thenReturn(0);
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "5.00", 1));
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("30.00"), BigDecimal.ZERO)).thenReturn(0);
 
         assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00")))
                 .isInstanceOf(BusinessException.class)
@@ -280,18 +282,19 @@ class WalletServiceImplTest {
     }
 
     @Test
-    @DisplayName("提现：金额非法直接拒绝，不查询钱包")
+    @DisplayName("提现：金额非法直接拒绝，不查询钱包也不加锁")
     void withdraw_whenAmountNotPositive_throwsAndTouchesNothing() {
         assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_AMOUNT_INVALID);
 
-        verify(walletMapper, never()).decreaseBalance(any(), any());
+        verify(walletMapper, never()).lockById(any());
+        verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
         verify(walletTransactionMapper, never()).insert(any(WalletTransaction.class));
     }
 
     @Test
-    @DisplayName("提现：钱包冻结时拒绝")
+    @DisplayName("提现：钱包冻结时拒绝（在加锁前就拦下）")
     void withdraw_whenWalletFrozen_throws() {
         when(walletMapper.selectByUser(TENANT, USER_ID)).thenReturn(wallet(WALLET_ID, "100.00", 0));
 
@@ -299,7 +302,8 @@ class WalletServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_FROZEN);
 
-        verify(walletMapper, never()).decreaseBalance(any(), any());
+        verify(walletMapper, never()).lockById(any());
+        verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
     }
 
 

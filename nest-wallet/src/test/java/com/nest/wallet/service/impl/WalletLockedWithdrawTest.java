@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,6 +26,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -74,6 +76,15 @@ class WalletLockedWithdrawTest {
         when(walletMapper.selectByUser(userType, USER_ID)).thenReturn(wallet(userType, balance));
     }
 
+    /**
+     * 提现链路：先 selectByUser 取钱包，再加行锁重读。
+     * 返回值必须与入参余额一致，否则断言看到的会是"锁后重读"的那份快照。
+     */
+    private void givenWalletForWithdraw(String userType, String balance) {
+        givenWallet(userType, balance);
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(userType, balance));
+    }
+
     private void givenLocked(String userType, String locked) {
         BigDecimal value = locked == null ? null : new BigDecimal(locked);
         when(lockedAmountProvider.lockedAmountOf(userType, USER_ID)).thenAnswer(invocation -> value);
@@ -119,9 +130,30 @@ class WalletLockedWithdrawTest {
 
 
     @Test
+    @DisplayName("提现：先加行锁 → 重读锁定金额 → 条件扣款（顺序即 TOCTOU 的修复本身）")
+    void withdraw_locksRowBeforeReadingLockedAmount() {
+        givenWalletForWithdraw(LANDLORD, "8000.00");
+        givenLocked(LANDLORD, "3000.00");
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1000.00"), new BigDecimal("3000.00")))
+                .thenReturn(1);
+
+        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1000.00"));
+
+        /* 锁定金额由另一张表的状态推导，必须在持有本行锁之后读取，
+           否则「租客缴押金给房东加余额 + 订单转锁定态」的事务能挤进读和扣之间 */
+        InOrder inOrder = inOrder(walletMapper, lockedAmountProvider);
+        inOrder.verify(walletMapper).lockById(WALLET_ID);
+        inOrder.verify(lockedAmountProvider).lockedAmountOf(LANDLORD, USER_ID);
+        inOrder.verify(walletMapper).decreaseBalanceWithLock(
+                WALLET_ID, new BigDecimal("1000.00"), new BigDecimal("3000.00"));
+
+        verify(walletMapper, never()).decreaseBalance(any(), any());
+    }
+
+    @Test
     @DisplayName("提现：金额在可提现余额内 → 用带锁定条件的原子扣款并落处理中流水")
     void withdraw_withinAvailable_usesLockedUpdateAndWritesPendingTxn() {
-        givenWallet(LANDLORD, "8000.00");
+        givenWalletForWithdraw(LANDLORD, "8000.00");
         givenLocked(LANDLORD, "3000.00");
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
@@ -145,7 +177,7 @@ class WalletLockedWithdrawTest {
     @Test
     @DisplayName("提现：刚好提完可提现余额 → 允许")
     void withdraw_exactlyAvailable_isAllowed() {
-        givenWallet(LANDLORD, "5000.00");
+        givenWalletForWithdraw(LANDLORD, "5000.00");
         givenLocked(LANDLORD, "3000.00");
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
@@ -158,7 +190,7 @@ class WalletLockedWithdrawTest {
     @Test
     @DisplayName("提现：余额够但被押金占用 → 报「押金不可提现」，不写流水")
     void withdraw_exceedsAvailableButWithinBalance_throwsLockedMessage() {
-        givenWallet(LANDLORD, "8000.00");
+        givenWalletForWithdraw(LANDLORD, "8000.00");
         givenLocked(LANDLORD, "3000.00");
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("6000.00"), new BigDecimal("3000.00")))
                 .thenReturn(0);
@@ -171,9 +203,9 @@ class WalletLockedWithdrawTest {
     }
 
     @Test
-    @DisplayName("提现：可提现余额不足时按下单条件扣款，不会先扣后校验")
+    @DisplayName("提现：只发一条条件扣款语句，不会先扣后校验")
     void withdraw_delegatesToConditionalUpdate_onlyOnce() {
-        givenWallet(LANDLORD, "8000.00");
+        givenWalletForWithdraw(LANDLORD, "8000.00");
         givenLocked(LANDLORD, "3000.00");
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
@@ -184,27 +216,28 @@ class WalletLockedWithdrawTest {
         verify(walletMapper, never()).decreaseBalance(any(), any());
     }
 
-
     @Test
-    @DisplayName("提现：锁定额为 0（如租客）→ 走原有扣款 SQL，不受押金逻辑影响")
-    void withdraw_whenLockedIsZero_usesPlainDecrease() {
-        givenWallet(TENANT, "500.00");
+    @DisplayName("提现：锁定额为 0 也必须走带锁定条件的 SQL（不允许退化成只校验余额）")
+    void withdraw_whenLockedIsZero_stillUsesLockedUpdate() {
+        givenWalletForWithdraw(TENANT, "500.00");
         givenLocked(TENANT, "0");
-        when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("200.00"))).thenReturn(1);
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("200.00"), BigDecimal.ZERO))
+                .thenReturn(1);
 
         WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("200.00"));
 
         assertThat(vo.getAvailableBalance()).isEqualByComparingTo("300.00");
-        verify(walletMapper).decreaseBalance(WALLET_ID, new BigDecimal("200.00"));
-        verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
+        verify(walletMapper).decreaseBalanceWithLock(WALLET_ID, new BigDecimal("200.00"), BigDecimal.ZERO);
+        verify(walletMapper, never()).decreaseBalance(any(), any());
     }
 
     @Test
     @DisplayName("提现：无锁定且扣款失败 → 报余额不足")
-    void withdraw_whenPlainDecreaseFails_throwsInsufficient() {
-        givenWallet(TENANT, "100.00");
+    void withdraw_whenConditionalUpdateFails_throwsInsufficient() {
+        givenWalletForWithdraw(TENANT, "100.00");
         givenLocked(TENANT, "0");
-        when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("999.00"))).thenReturn(0);
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("999.00"), BigDecimal.ZERO))
+                .thenReturn(0);
 
         assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("999.00")))
                 .isInstanceOf(BusinessException.class)
@@ -214,7 +247,7 @@ class WalletLockedWithdrawTest {
     @Test
     @DisplayName("提现：余额本身就低于提现额（且被锁定）→ 报余额不足而不是押金锁定")
     void withdraw_whenBalanceItselfInsufficient_throwsInsufficient() {
-        givenWallet(LANDLORD, "1000.00");
+        givenWalletForWithdraw(LANDLORD, "1000.00");
         givenLocked(LANDLORD, "3000.00");
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(0);
@@ -222,6 +255,19 @@ class WalletLockedWithdrawTest {
         assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
+    }
+
+    @Test
+    @DisplayName("提现：钱包不存在（加锁读不到）→ 报钱包不存在")
+    void withdraw_whenLockedRowMissing_throwsWalletNotFound() {
+        givenWallet(LANDLORD, "8000.00");
+        when(walletMapper.lockById(WALLET_ID)).thenAnswer(invocation -> null);
+
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_NOT_FOUND);
+
+        verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
     }
 
 

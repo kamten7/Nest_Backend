@@ -4,6 +4,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.chat.push.PushService;
 import com.nest.common.PageResult;
+import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
 import com.nest.entity.Conversation;
 import com.nest.entity.Landlord;
@@ -39,6 +40,18 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
+    /** 允许的会话双方身份类型：只可能是租客与房东 */
+    private static final Set<String> VALID_USER_TYPES =
+            Set.of(JwtConstant.TYPE_TENANT, JwtConstant.TYPE_LANDLORD);
+
+    /** 允许的消息类型（当前前端只用 text，保留 image 供后续图片消息） */
+    private static final Set<String> VALID_MSG_TYPES = Set.of("text", "image");
+
+    /** 单条消息最大长度，与评论模块保持一致 */
+    private static final int CONTENT_MAX_LENGTH = 500;
+
+    private static final String DEFAULT_MSG_TYPE = "text";
+
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final TenantMapper tenantMapper;
@@ -50,9 +63,9 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public Long send(String fromType, Long fromId, String toType, Long toId,
                      String content, String msgType, String clientMsgId) {
-        if (content == null || content.isBlank()) {
-            throw new BusinessException(MessageConstant.MESSAGE_CONTENT_EMPTY);
-        }
+        validateContent(content);
+        String type = validateAndNormalizeMsgType(msgType);
+        validatePeer(fromType, fromId, toType, toId);
 
         Conversation conversation = conversationMapper.selectByPair(fromType, fromId, toType, toId);
         if (conversation == null) {
@@ -70,7 +83,7 @@ public class ChatServiceImpl implements ChatService {
                 .senderType(fromType)
                 .senderId(fromId)
                 .content(content)
-                .msgType(msgType != null ? msgType : "text")
+                .msgType(type)
                 .isRead(0)
                 .build();
         messageMapper.insert(message);
@@ -159,6 +172,7 @@ public class ChatServiceImpl implements ChatService {
     /** 获取或创建会话 ID。 */
     @Override
     public Long getOrCreateConversationId(String myType, Long myId, String otherType, Long otherId) {
+        validatePeer(myType, myId, otherType, otherId);
         Conversation conversation = conversationMapper.selectByPair(myType, myId, otherType, otherId);
         if (conversation == null) {
             conversation = Conversation.builder()
@@ -221,6 +235,51 @@ public class ChatServiceImpl implements ChatService {
                 viewerType, viewerId, lastReadMsgId);
         log.info("已读回执推送: convId={}, reader={}:{}, peer={}:{}, lastReadMsgId={}",
                 conversation.getId(), viewerType, viewerId, peerType, peerId, lastReadMsgId);
+    }
+
+    /* ---------- 入参校验 ----------
+       聊天是唯一「接收方 ID 直接来自报文」的入口。对话双方身份由握手层保证可信
+       （路径 userType 与 token 签名密钥绑定），但接收方完全由客户端指定，
+       不校验就等于开放了「向任意用户发消息」和「为不存在的用户建会话」两种能力。 */
+
+    private void validateContent(String content) {
+        if (content == null || content.isBlank()) {
+            throw new BusinessException(MessageConstant.MESSAGE_CONTENT_EMPTY);
+        }
+        if (content.length() > CONTENT_MAX_LENGTH) {
+            throw new BusinessException(MessageConstant.MESSAGE_CONTENT_TOO_LONG);
+        }
+    }
+
+    /** 校验并归一化消息类型：空值按 text 处理，非白名单直接拒绝。 */
+    private String validateAndNormalizeMsgType(String msgType) {
+        if (msgType == null || msgType.isBlank()) {
+            return DEFAULT_MSG_TYPE;
+        }
+        String type = msgType.trim();
+        if (!VALID_MSG_TYPES.contains(type)) {
+            throw new BusinessException(MessageConstant.MESSAGE_TYPE_INVALID);
+        }
+        return type;
+    }
+
+    /** 校验接收方身份合法、账号真实存在，且不是发给自己。 */
+    private void validatePeer(String fromType, Long fromId, String toType, Long toId) {
+        if (!VALID_USER_TYPES.contains(toType)) {
+            throw new BusinessException(MessageConstant.MESSAGE_TO_TYPE_INVALID);
+        }
+        if (toId == null || toId <= 0) {
+            throw new BusinessException(MessageConstant.MESSAGE_TO_USER_INVALID);
+        }
+        if (toType.equals(fromType) && toId.equals(fromId)) {
+            throw new BusinessException(MessageConstant.MESSAGE_TO_SELF);
+        }
+        boolean exists = JwtConstant.TYPE_LANDLORD.equals(toType)
+                ? landlordMapper.selectById(toId) != null
+                : tenantMapper.selectById(toId) != null;
+        if (!exists) {
+            throw new BusinessException(MessageConstant.MESSAGE_TO_USER_INVALID);
+        }
     }
 
     private void fillOtherInfo(ConversationVO vo) {

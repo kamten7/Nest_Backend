@@ -134,13 +134,21 @@ public class WalletServiceImpl implements WalletService {
         Wallet wallet = getByUser(userType, userId);
         checkUsable(wallet);
 
+        /* 先对钱包行加排他锁，再重读「锁定金额」，最后才条件扣款。
+           锁定金额（在租押金）不是 wallet 表里的列，而是由 rent_order 状态推导出来的：
+           租客缴押金时，同一个事务会先给房东钱包加余额（必须抢到本行锁）再把订单推进到
+           「押金锁定」状态。因此只要本节持有本行锁，该事务就无法在本节读值前后插入中间态，
+           读到的 locked / balance 必属同一时点，从而杜绝 TOCTOU（旧写法先读 locked
+           再据此二选一拼 SQL，读与扣之间存在窗口 ⇒ 房东可把刚到账的押金提走）。 */
+        wallet = walletMapper.lockById(wallet.getId());
+        checkUsable(wallet);
+
         BigDecimal locked = lockedAmount(userType, userId);
-        int rows = locked.signum() > 0
-                ? walletMapper.decreaseBalanceWithLock(wallet.getId(), amount, locked)
-                : walletMapper.decreaseBalance(wallet.getId(), amount);
+        /* 无条件走带锁定校验的 SQL：绝不允许退化成只校验余额的 decreaseBalance */
+        int rows = walletMapper.decreaseBalanceWithLock(wallet.getId(), amount, locked);
         if (rows == 0) {
-            BigDecimal balance = nullToZero(wallet.getBalance());
-            if (locked.signum() > 0 && balance.compareTo(amount) >= 0) {
+            /* 余额本身够、却仍扣不动 ⇒ 只可能是被锁定金额挡住（balance − locked < amount） */
+            if (nullToZero(wallet.getBalance()).compareTo(amount) >= 0) {
                 throw new BusinessException(MessageConstant.WALLET_WITHDRAW_LOCKED);
             }
             throw new BusinessException(MessageConstant.WALLET_BALANCE_INSUFFICIENT);

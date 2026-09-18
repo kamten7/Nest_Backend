@@ -16,6 +16,13 @@ public interface WalletMapper {
     /** 按 ID 查询 */
     Wallet selectById(@Param("id") Long id);
 
+    /**
+     * 按 ID 查询并加排他行锁（SELECT ... FOR UPDATE），须在事务内调用。
+     * <p>用于「读取锁定金额 + 条件扣款」这类需要同一时点快照的场景：先锁住钱包行，
+     * 后续重读的值才不会被并发事务（如租客缴押金给房东加余额）插入中间态。</p>
+     */
+    Wallet lockById(@Param("id") Long id);
+
     /** 新建钱包 */
     int insert(Wallet wallet);
 

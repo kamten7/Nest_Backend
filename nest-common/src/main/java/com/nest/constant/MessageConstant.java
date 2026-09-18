@@ -16,6 +16,14 @@ public final class MessageConstant {
     public static final String HOUSE_NOT_FOUND = "房源不存在或已下架";
     public static final String HOUSE_NOT_OWNER = "不是您的房源，无权操作";
     public static final String IMAGE_UPLOAD_EMPTY = "上传文件不能为空";
+    /** 文件后缀不在白名单内 */
+    public static final String FILE_TYPE_NOT_ALLOWED = "不支持的文件类型，仅允许 jpg / jpeg / png / gif / webp / bmp";
+    /** 文件体积超出上限 */
+    public static final String FILE_SIZE_EXCEED = "文件过大，图片不能超过 10MB";
+    /** 文件真实内容与后缀不符（防改后缀绕过） */
+    public static final String FILE_CONTENT_INVALID = "文件内容与扩展名不符，请上传真实图片";
+    /** 文件读取失败 */
+    public static final String FILE_READ_FAILED = "文件读取失败，请重试";
     public static final String APPOINTMENT_DUPLICATE = "您已预约过该房源，请勿重复预约";
     public static final String APPOINTMENT_NOT_FOUND = "预约不存在";
     public static final String APPOINTMENT_STATUS_INVALID = "当前状态不允许此操作";
@@ -45,6 +53,16 @@ public final class MessageConstant {
     public static final String CONVERSATION_NOT_FOUND = "会话不存在";
     public static final String MESSAGE_SEND_FAILED = "消息发送失败";
     public static final String MESSAGE_CONTENT_EMPTY = "消息内容不能为空";
+    /** 消息接收方不存在（防止给任意/不存在的用户建会话、发消息） */
+    public static final String MESSAGE_TO_USER_INVALID = "消息接收方不存在";
+    /** 接收方身份类型非法（只允许 tenant / landlord） */
+    public static final String MESSAGE_TO_TYPE_INVALID = "消息接收方身份不合法";
+    /** 不能给自己发消息 */
+    public static final String MESSAGE_TO_SELF = "不能给自己发送消息";
+    /** 消息类型不支持 */
+    public static final String MESSAGE_TYPE_INVALID = "消息类型不支持";
+    /** 消息内容过长 */
+    public static final String MESSAGE_CONTENT_TOO_LONG = "消息内容长度不能超过 500 个字符";
 
     public static final String CONTRACT_NOT_FOUND = "合同不存在";
     public static final String CONTRACT_STATUS_INVALID = "当前合同状态不允许此操作";

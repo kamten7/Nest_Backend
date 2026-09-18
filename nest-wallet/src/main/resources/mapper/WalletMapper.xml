@@ -11,6 +11,11 @@
         SELECT * FROM wallet WHERE id = #{id}
     </select>
 
+    <!-- 排他行锁：持锁期间「余额 − 锁定金额」的读取才有意义（须在事务内） -->
+    <select id="lockById" resultType="Wallet">
+        SELECT * FROM wallet WHERE id = #{id} FOR UPDATE
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO wallet (user_type, user_id, balance, status, create_time, update_time)
         VALUES (#{userType}, #{userId}, #{balance}, 1, NOW(), NOW())
