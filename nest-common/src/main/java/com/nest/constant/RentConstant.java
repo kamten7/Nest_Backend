@@ -29,4 +29,9 @@ public final class RentConstant {
     public static final int MAX_AHEAD_MONTHS = 5;
     public static final int REMIND_BEFORE_DAYS = 3;
     public static final int SETTLE_GRACE_DAYS = 7;
+
+    /**
+     * 待缴押金超时阈值（分钟）。
+     */
+    public static final int DEPOSIT_PAY_TIMEOUT_MINUTES = 30;
 }

@@ -100,3 +100,4 @@ nest:
   rent:
     reminder-cron: 0 0 10 * * ?
     refund-cron: 0 0 11 * * ?
+    deposit-timeout-cron: 0 * * * * ?   # 待缴押金超时扫描（每分钟；阈值见 RentConstant.DEPOSIT_PAY_TIMEOUT_MINUTES）

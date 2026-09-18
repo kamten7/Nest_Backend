@@ -56,6 +56,16 @@ public interface RentOrderService {
     boolean autoRefundOne(Long terminationId);
 
 
+    /** 待缴押金超时的订单 ID（创建已超过 timeoutMinutes 分钟仍未缴押金，房源一直被占着）。 */
+    List<Long> listExpiredPendingDepositIds(int timeoutMinutes);
+
+    /**
+     * 超时自动取消单笔订单：待缴押金(1) → 已取消(5)，并把房源从「在租中」恢复为「上架」。
+     * 独立事务，供任务逐条调用，失败不影响其它记录；返回是否真的取消了。
+     */
+    boolean autoCancelExpiredOrder(Long orderId, int timeoutMinutes);
+
+
     /** 房东「在租」订单的押金总额：这部分钱在房东钱包里但不可提现。 */
     BigDecimal lockedDepositOf(Long landlordId);
 }

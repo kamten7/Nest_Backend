@@ -67,6 +67,11 @@ public interface RentOrderMapper {
     List<RentOrder> selectDueForReminder(@Param("today") LocalDate today,
                                         @Param("beforeDays") int beforeDays);
 
+    /**
+     * 超时的待缴押金订单 ID：状态仍为「待缴押金(1)」，且创建时间已超过 timeoutMinutes 分钟。
+     */
+    List<Long> selectExpiredPendingDepositIds(@Param("timeoutMinutes") int timeoutMinutes);
+
     /** 房东「在租」订单的押金总额 —— 这部分钱在房东钱包里但不可提现 */
     BigDecimal sumLockedDeposit(@Param("landlordId") Long landlordId,
                                 @Param("statuses") int[] statuses);

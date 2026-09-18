@@ -99,6 +99,16 @@
         ORDER BY id
     </select>
 
+    <!-- 待缴押金超时扫描：状态仍是「待缴押金(1)」且创建已超过 timeoutMinutes 分钟。
+         只取 ID（不带其它列）：逐条由服务层在独立事务里条件更新，任务整体不持长事务。
+         ⚠️ status / create_time 均无索引，本查询会全表扫 —— 见 docs 里「定时任务索引缺口」。 -->
+    <select id="selectExpiredPendingDepositIds" resultType="java.lang.Long">
+        SELECT id FROM rent_order
+        WHERE status = 1
+          AND create_time &lt;= DATE_SUB(NOW(), INTERVAL #{timeoutMinutes} MINUTE)
+        ORDER BY id
+    </select>
+
     <!-- 房东「在租」订单的押金总额：status 2 租房中 / 3 退租申请中（钱未结算，仍占用额度） -->
     <!-- 房东在租订单的押金总额：状态集合由 Java 侧 RentOrderStatus.DEPOSIT_LOCKED_STATUS 传入，避免 SQL 与常量双份维护 -->
     <select id="sumLockedDeposit" resultType="java.math.BigDecimal">

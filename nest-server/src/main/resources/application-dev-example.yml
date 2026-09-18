@@ -90,6 +90,7 @@ nest:
   rent:
     reminder-cron: 0 0 10 * * ?         # 缴租提醒
     refund-cron: 0 0 11 * * ?           # 超期未结算，自动退还押金
+    deposit-timeout-cron: 0 * * * * ?   # 待缴押金超时扫描（每 30 分钟未缴则取消订单 + 房源重新上架）
 
 spring:
   data:

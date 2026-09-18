@@ -63,6 +63,8 @@ public class RentOrderServiceImpl implements RentOrderService {
     private static final DateTimeFormatter NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final String NOTICE_TYPE_RENT = "rent_reminder";
+    /** 待缴押金超时自动取消的通知类型（租客/房东共用）。 */
+    private static final String NOTICE_TYPE_DEPOSIT_TIMEOUT = "rent_timeout";
     /** 放弃租房时回写预约的取消原因。 */
     private static final String CANCEL_REASON_GIVE_UP = "租房订单已取消（租客放弃租房）";
 
@@ -476,6 +478,69 @@ public class RentOrderServiceImpl implements RentOrderService {
     }
 
     @Override
+    public List<Long> listExpiredPendingDepositIds(int timeoutMinutes) {
+        return rentOrderMapper.selectExpiredPendingDepositIds(timeoutMinutes);
+    }
+
+    /**
+     * 超时未缴押金 → 自动取消订单并把房源释放回「上架」。
+     */
+    @Override
+    @Transactional
+    public boolean autoCancelExpiredOrder(Long orderId, int timeoutMinutes) {
+        RentOrder order = rentOrderMapper.selectById(orderId);
+        if (order == null || order.getStatus() == null
+                || order.getStatus() != RentOrderStatus.PENDING_DEPOSIT) {
+            return false;
+        }
+        // 兜底复核：确实已超时。防任务取到过期快照后延迟执行，也防调用方传了不一致的阈值。
+        LocalDateTime createdAt = order.getCreateTime() == null ? LocalDateTime.now() : order.getCreateTime();
+        if (LocalDateTime.now().isBefore(createdAt.plusMinutes(timeoutMinutes))) {
+            return false;
+        }
+
+        int rows = rentOrderMapper.toCancelled(orderId);
+        if (rows == 0) {
+            // 已被并发处理（租客缴了押金 / 主动放弃），不重复动作
+            log.info("超时取消跳过（订单状态已被并发变更）: orderId={}", orderId);
+            return false;
+        }
+        // 房源「在租中」(2) → 「上架」(1)：回滚 confirmRent 的占房动作，让房源重新可被预约
+        int houseRows = rentHouseMapper.markAvailableIfRented(order.getHouseId());
+        if (houseRows == 0) {
+            log.warn("超时取消后房源未恢复为上架（状态非 2 或已被改）: orderId={}, houseId={}",
+                    orderId, order.getHouseId());
+        }
+        // 预约收尾：已成交(5) → 已取消(4)，与租客主动放弃保持一致
+        int apptRows = rentAppointmentMapper.markCancelledIfDeal(
+                order.getAppointmentId(), cancelReasonDepositTimeout(timeoutMinutes));
+        if (apptRows == 0) {
+            log.warn("超时取消后预约未置为已取消（状态非 5 或已被并发修改）: orderId={}, appointmentId={}",
+                    orderId, order.getAppointmentId());
+        }
+        log.info("待缴押金超时自动取消: orderId={}, houseId={}, appointmentId={}, 阈值={}分钟",
+                orderId, order.getHouseId(), order.getAppointmentId(), timeoutMinutes);
+
+        // 双向通知：推送失败不影响取消结果（与 confirmRent 处理通知的方式一致）
+        try {
+            pushService.pushNotice(JwtConstant.TYPE_TENANT, order.getTenantId(), NOTICE_TYPE_DEPOSIT_TIMEOUT,
+                    "租房订单已超时取消",
+                    "您有一笔租房订单因超过 " + timeoutMinutes + " 分钟未缴纳押金已自动取消，房源已重新上架。"
+                            + "如需继续租住，请重新预约并确认租房。");
+        } catch (Exception e) {
+            log.warn("超时取消通知租客失败: orderId={}, reason={}", orderId, e.getMessage());
+        }
+        try {
+            pushService.pushNotice(JwtConstant.TYPE_LANDLORD, order.getLandlordId(), NOTICE_TYPE_DEPOSIT_TIMEOUT,
+                    "租房订单已超时取消",
+                    "租客超过 " + timeoutMinutes + " 分钟未缴纳押金，该订单已自动取消，房源已重新上架。");
+        } catch (Exception e) {
+            log.warn("超时取消通知房东失败: orderId={}, reason={}", orderId, e.getMessage());
+        }
+        return true;
+    }
+
+    @Override
     public BigDecimal lockedDepositOf(Long landlordId) {
         if (landlordId == null) {
             return ZERO;
@@ -556,6 +621,11 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (order.getStatus() != RentOrderStatus.RENTING) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
+    }
+
+    /** 超时自动取消时回写预约的取消原因（带上实际阈值，避免文案与规则脱节）。 */
+    private static String cancelReasonDepositTimeout(int timeoutMinutes) {
+        return "租房订单已超时取消（超过 " + timeoutMinutes + " 分钟未缴纳押金）";
     }
 
     /** 缴费前的余额预检，用于给出「请先充值」的友好提示；真正的防超扣在 wallet 的条件更新里。 */
