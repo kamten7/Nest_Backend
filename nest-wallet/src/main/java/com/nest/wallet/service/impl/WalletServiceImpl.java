@@ -2,6 +2,7 @@ package com.nest.wallet.service.impl;
 
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.MessageConstant;
 import com.nest.constant.WalletConstant;
@@ -204,9 +205,7 @@ public class WalletServiceImpl implements WalletService {
     @Override
     public PageResult<WalletTransactionVO> listTransactions(String userType, Long userId,
                                                             String bizType, Integer page, Integer pageSize) {
-        int p = (page == null || page < 1) ? 1 : page;
-        int ps = (pageSize == null || pageSize < 1) ? 20 : pageSize;
-        PageHelper.startPage(p, ps);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<WalletTransaction> list = walletTransactionMapper.selectByUser(userType, userId, bizType);
         PageInfo<WalletTransaction> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), toVOs(list));

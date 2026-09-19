@@ -378,15 +378,17 @@ class WalletServiceImplTest {
     }
 
     @Test
-    @DisplayName("流水：page/pageSize 非法（null、0、负数）时归一化为 1/20")
+    @DisplayName("流水：分页参数统一走 PageParam（负数归 1、超上限截 100）")
     void listTransactions_normalizesInvalidPageParams() {
         when(walletTransactionMapper.selectByUser(TENANT, USER_ID, null)).thenReturn(List.of());
 
         walletService.listTransactions(TENANT, USER_ID, null, 0, -5);
-
         assertThat(PageHelper.getLocalPage()).isNotNull();
         assertThat(PageHelper.getLocalPage().getPageNum()).isEqualTo(1);
-        assertThat(PageHelper.getLocalPage().getPageSize()).isEqualTo(20);
+        assertThat(PageHelper.getLocalPage().getPageSize()).isEqualTo(1);
+
+        walletService.listTransactions(TENANT, USER_ID, null, 1, 100000);
+        assertThat(PageHelper.getLocalPage().getPageSize()).isEqualTo(100);
     }
 
 
