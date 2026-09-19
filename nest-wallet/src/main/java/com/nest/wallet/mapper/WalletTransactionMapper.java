@@ -13,6 +13,9 @@ public interface WalletTransactionMapper {
     /** 写入一条流水 */
     int insert(WalletTransaction txn);
 
+    /** 按幂等键查流水（提现防重的快路径；真正的保证是 idem_key 唯一索引） */
+    WalletTransaction selectByIdemKey(@Param("idemKey") String idemKey);
+
     /** 回填对端流水 ID（双向记账互指） */
     int updatePeerTxn(@Param("id") Long id, @Param("peerTxnId") Long peerTxnId);
 

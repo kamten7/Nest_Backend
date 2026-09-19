@@ -82,6 +82,12 @@ public final class MessageConstant {
     public static final String RENT_SETTLE_NOT_DUE = "已购租期尚未结束，暂不能结算押金";
     public static final String RENT_PHONE_REQUIRED = "请先绑定手机号后再租房（我的 → 个人信息）";
     public static final String WALLET_WITHDRAW_LOCKED = "在租订单的押金不可提现，当前可提现金额不足";
+    /** 提现缺幂等键 */
+    public static final String WALLET_IDEM_KEY_REQUIRED = "缺少幂等键，请刷新页面后重试";
+    /** 同一幂等键重复提交 */
+    public static final String WALLET_IDEM_DUPLICATE = "请勿重复提交，该提现申请已受理";
+    /** 锁定金额来源缺失（订单模块未装配）—— 资金操作必须 fail-fast */
+    public static final String WALLET_LOCK_SOURCE_UNAVAILABLE = "提现服务暂不可用，请联系管理员";
     public static final String TERMINATION_ALREADY_APPLIED = "您已提交退租申请";
     public static final String PHONE_ALREADY_REGISTERED = "该手机号已注册";
     public static final String PHONE_INVALID = "手机号格式不正确";

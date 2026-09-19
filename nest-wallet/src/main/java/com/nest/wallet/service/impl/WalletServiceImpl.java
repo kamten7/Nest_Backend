@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** 钱包服务实现 —— 懒创建 + 双向记账 + 条件扣款防超扣。 */
 @Slf4j
@@ -38,6 +39,9 @@ public class WalletServiceImpl implements WalletService {
 
     private static final DateTimeFormatter BIZ_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+
+    /** 只为把"provider 缺失"这条 ERROR 打一次，避免每次查钱包都刷屏 */
+    private final AtomicBoolean lockProviderWarned = new AtomicBoolean(false);
 
     private final WalletMapper walletMapper;
     private final WalletTransactionMapper walletTransactionMapper;
@@ -126,13 +130,24 @@ public class WalletServiceImpl implements WalletService {
         return buildVO(wallet.getId(), balanceAfter);
     }
 
-    /** 提现（预留）：条件扣款，写一条 WITHDRAW 状态=处理中 的支出流水。 */
+    /** 提现（预留）：幂等受理 + 行锁下条件扣款，写一条 WITHDRAW 状态=处理中 的支出流水。 */
     @Override
     @Transactional
-    public WalletVO withdraw(String userType, Long userId, BigDecimal amount) {
+    public WalletVO withdraw(String userType, Long userId, BigDecimal amount, String idempotencyKey) {
         checkAmount(amount);
+        /* 锁定金额由订单模块经 SPI 提供；缺了它就等于"押金不设防"，资金操作宁可拒绝也不能放行 */
+        requireLockProvider();
+        String idemKey = requireIdempotencyKey(idempotencyKey);
+
         Wallet wallet = getByUser(userType, userId);
         checkUsable(wallet);
+
+        /* 幂等快路径：同键已受理过就直接拒绝，省掉后面的加锁与扣款。
+           并发窗口由 uk_idem 唯一索引兜底（见下方 insert 的 catch） */
+        if (walletTransactionMapper.selectByIdemKey(idemKey) != null) {
+            log.warn("提现重复提交（快路径命中）: userType={}, userId={}, idemKey={}", userType, userId, idemKey);
+            throw new BusinessException(MessageConstant.WALLET_IDEM_DUPLICATE);
+        }
 
         /* 先对钱包行加排他锁，再重读「锁定金额」，最后才条件扣款。
            锁定金额（在租押金）不是 wallet 表里的列，而是由 rent_order 状态推导出来的：
@@ -166,9 +181,18 @@ public class WalletServiceImpl implements WalletService {
                 .source(WalletConstant.SOURCE_SIMULATE)
                 .status(WalletConstant.STATUS_PENDING)
                 .bizNo(genBizNo("WD"))
+                .idemKey(idemKey)
                 .remark("提现申请（待打款）")
                 .build();
-        walletTransactionMapper.insert(txn);
+        try {
+            walletTransactionMapper.insert(txn);
+        } catch (DuplicateKeyException e) {
+            /* 快路径（selectByIdemKey）拦不住并发双击：两个请求都通过了预检查，
+               串行拿到行锁后第二个 insert 必撞 uk_idem ⇒ 抛业务异常让整个事务回滚，
+               余额扣减一并撤销，效果等同"这笔请求从没发生过" */
+            log.warn("提现幂等命中: walletId={}, idemKey={}", wallet.getId(), idemKey);
+            throw new BusinessException(MessageConstant.WALLET_IDEM_DUPLICATE);
+        }
 
         log.info("钱包提现申请: walletId={}, amount={}, balanceAfter={}, locked={}",
                 wallet.getId(), amount, balanceAfter, locked);
@@ -257,6 +281,22 @@ public class WalletServiceImpl implements WalletService {
         }
     }
 
+    /** 资金操作的 fail-fast：锁定来源缺失时绝不放行（展示可以降级，扣钱不可以）。 */
+    private void requireLockProvider() {
+        if (lockedAmountProvider == null) {
+            log.error("LockedAmountProvider 未装配：无法计算在租押金锁定额，已拒绝资金操作。");
+            throw new BusinessException(MessageConstant.WALLET_LOCK_SOURCE_UNAVAILABLE);
+        }
+    }
+
+    /** 幂等键必填：没有它就无法区分"同一笔请求"和"第二笔提现"。 */
+    private String requireIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new BusinessException(MessageConstant.WALLET_IDEM_KEY_REQUIRED);
+        }
+        return idempotencyKey.trim();
+    }
+
     /** 充值单笔上限校验（防止误输入或恶意构造天文数字）。 */
     private void checkRechargeAmount(BigDecimal amount) {
         if (amount.compareTo(WalletConstant.RECHARGE_AMOUNT_MAX) > 0) {
@@ -278,9 +318,14 @@ public class WalletServiceImpl implements WalletService {
         return v == null ? ZERO : v;
     }
 
-    /** 查询某用户的锁定金额（不可提现部分）。无实现方或实现方返回 null 时视为 0。 */
+    /** 查询某用户的锁定金额（不可提现部分）。实现方返回 null 时视为 0。 */
     private BigDecimal lockedAmount(String userType, Long userId) {
         if (lockedAmountProvider == null) {
+            /* 展示路径允许降级为 0（资金操作已在 requireLockProvider 拦下），
+               但必须喊出来——静默按 0 等于把"押金不设防"藏起来 */
+            if (lockProviderWarned.compareAndSet(false, true)) {
+                log.error("LockedAmountProvider 未装配：锁定金额按 0 展示（仅影响展示，资金操作已被拒绝）");
+            }
             return ZERO;
         }
         return nullToZero(lockedAmountProvider.lockedAmountOf(userType, userId));

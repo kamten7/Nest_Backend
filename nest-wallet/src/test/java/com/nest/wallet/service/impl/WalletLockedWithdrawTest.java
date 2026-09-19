@@ -19,6 +19,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -41,6 +42,7 @@ class WalletLockedWithdrawTest {
     private static final String TENANT = JwtConstant.TYPE_TENANT;
     private static final Long USER_ID = 7L;
     private static final Long WALLET_ID = 101L;
+    private static final String IDEM_KEY = "idem-20260918-0001";
 
     @Mock
     private WalletMapper walletMapper;
@@ -137,7 +139,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1000.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
 
-        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1000.00"));
+        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1000.00"), IDEM_KEY);
 
         /* 锁定金额由另一张表的状态推导，必须在持有本行锁之后读取，
            否则「租客缴押金给房东加余额 + 订单转锁定态」的事务能挤进读和扣之间 */
@@ -151,6 +153,21 @@ class WalletLockedWithdrawTest {
     }
 
     @Test
+    @DisplayName("提现：受理流水必须带上幂等键")
+    void withdraw_writesIdempotencyKeyOnTxn() {
+        givenWalletForWithdraw(LANDLORD, "8000.00");
+        givenLocked(LANDLORD, "3000.00");
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1000.00"), new BigDecimal("3000.00")))
+                .thenReturn(1);
+
+        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1000.00"), IDEM_KEY);
+
+        ArgumentCaptor<WalletTransaction> captor = ArgumentCaptor.forClass(WalletTransaction.class);
+        verify(walletTransactionMapper).insert(captor.capture());
+        assertThat(captor.getValue().getIdemKey()).isEqualTo(IDEM_KEY);
+    }
+
+    @Test
     @DisplayName("提现：金额在可提现余额内 → 用带锁定条件的原子扣款并落处理中流水")
     void withdraw_withinAvailable_usesLockedUpdateAndWritesPendingTxn() {
         givenWalletForWithdraw(LANDLORD, "8000.00");
@@ -158,7 +175,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
 
-        WalletVO vo = walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00"));
+        WalletVO vo = walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00"), IDEM_KEY);
 
         assertThat(vo.getBalance()).isEqualByComparingTo("6000.00");
         assertThat(vo.getLockedAmount()).isEqualByComparingTo("3000.00");
@@ -182,7 +199,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
 
-        WalletVO vo = walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00"));
+        WalletVO vo = walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00"), IDEM_KEY);
 
         assertThat(vo.getAvailableBalance()).isEqualByComparingTo("0.00");
     }
@@ -195,7 +212,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("6000.00"), new BigDecimal("3000.00")))
                 .thenReturn(0);
 
-        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("6000.00")))
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("6000.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_WITHDRAW_LOCKED);
 
@@ -210,7 +227,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1.00"), new BigDecimal("3000.00")))
                 .thenReturn(1);
 
-        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"));
+        walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"), IDEM_KEY);
 
         verify(walletMapper).decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1.00"), new BigDecimal("3000.00"));
         verify(walletMapper, never()).decreaseBalance(any(), any());
@@ -224,7 +241,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("200.00"), BigDecimal.ZERO))
                 .thenReturn(1);
 
-        WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("200.00"));
+        WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("200.00"), IDEM_KEY);
 
         assertThat(vo.getAvailableBalance()).isEqualByComparingTo("300.00");
         verify(walletMapper).decreaseBalanceWithLock(WALLET_ID, new BigDecimal("200.00"), BigDecimal.ZERO);
@@ -239,7 +256,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("999.00"), BigDecimal.ZERO))
                 .thenReturn(0);
 
-        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("999.00")))
+        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("999.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
     }
@@ -252,7 +269,7 @@ class WalletLockedWithdrawTest {
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("2000.00"), new BigDecimal("3000.00")))
                 .thenReturn(0);
 
-        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00")))
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("2000.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
     }
@@ -263,11 +280,63 @@ class WalletLockedWithdrawTest {
         givenWallet(LANDLORD, "8000.00");
         when(walletMapper.lockById(WALLET_ID)).thenAnswer(invocation -> null);
 
-        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00")))
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_NOT_FOUND);
 
         verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
+    }
+
+
+    @Test
+    @DisplayName("提现：无幂等键直接拒绝，不碰任何 mapper")
+    void withdraw_withoutIdempotencyKey_throwsAndTouchesNothing() {
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"), " "))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_IDEM_KEY_REQUIRED);
+
+        verifyNoInteractions(walletMapper, walletTransactionMapper);
+    }
+
+    @Test
+    @DisplayName("提现：同一幂等键已受理过 → 拒绝且不加锁、不扣款")
+    void withdraw_whenIdemKeyAlreadyUsed_throwsWithoutLocking() {
+        when(walletTransactionMapper.selectByIdemKey(IDEM_KEY)).thenReturn(new WalletTransaction());
+
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"), IDEM_KEY))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_IDEM_DUPLICATE);
+
+        verify(walletMapper, never()).lockById(any());
+        verify(walletMapper, never()).decreaseBalanceWithLock(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("提现：并发双击都过了快路径 → 后落库的撞 uk_idem 唯一索引，报重复提交")
+    void withdraw_whenConcurrentDuplicateHitsUniqueIndex_throwsDuplicate() {
+        givenWalletForWithdraw(LANDLORD, "8000.00");
+        givenLocked(LANDLORD, "3000.00");
+        when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("1000.00"), new BigDecimal("3000.00")))
+                .thenReturn(1);
+        when(walletTransactionMapper.selectByIdemKey(IDEM_KEY)).thenReturn(null);
+        when(walletTransactionMapper.insert(any(WalletTransaction.class)))
+                .thenThrow(new DuplicateKeyException("Duplicate entry '" + IDEM_KEY + "' for key 'uk_idem'"));
+
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1000.00"), IDEM_KEY))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_IDEM_DUPLICATE);
+    }
+
+    @Test
+    @DisplayName("提现：锁定来源缺失（订单模块未装配）→ fail-fast 拒绝，绝不放行")
+    void withdraw_withoutLockProvider_failsFast() {
+        walletService.lockedAmountProvider = null;
+
+        assertThatThrownBy(() -> walletService.withdraw(LANDLORD, USER_ID, new BigDecimal("1.00"), IDEM_KEY))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_LOCK_SOURCE_UNAVAILABLE);
+
+        verifyNoInteractions(walletMapper, walletTransactionMapper);
     }
 
 

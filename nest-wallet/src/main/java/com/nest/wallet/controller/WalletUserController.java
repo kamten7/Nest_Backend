@@ -44,10 +44,12 @@ public class WalletUserController {
 
     /** 提现（预留微信零钱到账）。 */
     @PostMapping("/withdraw")
-    @Operation(summary = "提现", description = "提交提现申请，落处理中流水，暂未实际打款")
+    @Operation(summary = "提现", description = "提交提现申请，落处理中流水，暂未实际打款。idempotencyKey 由前端在打开弹窗时生成，同一键只受理一次")
     public Result<WalletVO> withdraw(@Valid @RequestBody WalletAmountDTO dto) {
-        log.info("钱包提现: tenantId={}, amount={}", BaseContext.getCurrentId(), dto.getAmount());
-        WalletVO vo = walletService.withdraw(JwtConstant.TYPE_TENANT, BaseContext.getCurrentId(), dto.getAmount());
+        log.info("钱包提现: tenantId={}, amount={}, idemKey={}",
+                BaseContext.getCurrentId(), dto.getAmount(), dto.getIdempotencyKey());
+        WalletVO vo = walletService.withdraw(JwtConstant.TYPE_TENANT, BaseContext.getCurrentId(),
+                dto.getAmount(), dto.getIdempotencyKey());
         return Result.success("提现申请已提交", vo);
     }
 

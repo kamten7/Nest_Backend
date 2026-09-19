@@ -5,10 +5,15 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO wallet_transaction (wallet_id, user_type, user_id, biz_type, amount,
-            direction, balance_after, source, status, biz_no, peer_txn_id, remark, create_time)
+            direction, balance_after, source, status, biz_no, idem_key, peer_txn_id, remark, create_time)
         VALUES (#{walletId}, #{userType}, #{userId}, #{bizType}, #{amount},
-            #{direction}, #{balanceAfter}, #{source}, #{status}, #{bizNo}, #{peerTxnId}, #{remark}, NOW())
+            #{direction}, #{balanceAfter}, #{source}, #{status}, #{bizNo}, #{idemKey}, #{peerTxnId}, #{remark}, NOW())
     </insert>
+
+    <!-- 幂等快路径：命中即说明这笔提现已经受理过 -->
+    <select id="selectByIdemKey" resultType="WalletTransaction">
+        SELECT * FROM wallet_transaction WHERE idem_key = #{idemKey}
+    </select>
 
     <update id="updatePeerTxn">
         UPDATE wallet_transaction SET peer_txn_id = #{peerTxnId} WHERE id = #{id}

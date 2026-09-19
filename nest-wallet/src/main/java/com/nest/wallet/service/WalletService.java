@@ -19,8 +19,12 @@ public interface WalletService {
     /** 充值（模拟，预留微信支付）。 */
     WalletVO recharge(String userType, Long userId, BigDecimal amount);
 
-    /** 提现（预留微信零钱到账，落"处理中"流水）。 */
-    WalletVO withdraw(String userType, Long userId, BigDecimal amount);
+    /**
+     * 提现（预留微信零钱到账，落"处理中"流水）。
+     *
+     * @param idempotencyKey 客户端幂等键，同一键只受理一次（双击/重试不重复扣款）
+     */
+    WalletVO withdraw(String userType, Long userId, BigDecimal amount, String idempotencyKey);
 
     /** 分页查询钱包流水（bizType 为空=全部）。 */
     PageResult<WalletTransactionVO> listTransactions(String userType, Long userId,

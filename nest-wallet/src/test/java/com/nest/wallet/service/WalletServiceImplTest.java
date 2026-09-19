@@ -46,12 +46,17 @@ class WalletServiceImplTest {
     private static final String TENANT = JwtConstant.TYPE_TENANT;
     private static final Long USER_ID = 7L;
     private static final Long WALLET_ID = 101L;
+    private static final String IDEM_KEY = "idem-wallet-test-0001";
 
     @Mock
     private WalletMapper walletMapper;
 
     @Mock
     private WalletTransactionMapper walletTransactionMapper;
+
+    /** 提现已改为 fail-fast：provider 缺失会拒绝资金操作，所以这里必须注入一个 */
+    @Mock
+    private LockedAmountProvider lockedAmountProvider;
 
     @InjectMocks
     private WalletServiceImpl walletService;
@@ -63,6 +68,8 @@ class WalletServiceImplTest {
     @BeforeEach
     void enableSimulateRecharge() {
         ReflectionTestUtils.setField(walletService, "simulateRechargeEnabled", true);
+        // 字段是包级私有且本测试在 service 包（impl 外）⇒ 走反射注入
+        ReflectionTestUtils.setField(walletService, "lockedAmountProvider", lockedAmountProvider);
     }
 
     @Test
@@ -252,7 +259,7 @@ class WalletServiceImplTest {
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "100.00", 1));
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("30.00"), BigDecimal.ZERO)).thenReturn(1);
 
-        WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00"));
+        WalletVO vo = walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00"), IDEM_KEY);
 
         assertThat(vo.getBalance()).isEqualByComparingTo("70.00");
 
@@ -273,7 +280,7 @@ class WalletServiceImplTest {
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "5.00", 1));
         when(walletMapper.decreaseBalanceWithLock(WALLET_ID, new BigDecimal("30.00"), BigDecimal.ZERO)).thenReturn(0);
 
-        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00")))
+        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("30.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_BALANCE_INSUFFICIENT);
 
@@ -284,7 +291,7 @@ class WalletServiceImplTest {
     @Test
     @DisplayName("提现：金额非法直接拒绝，不查询钱包也不加锁")
     void withdraw_whenAmountNotPositive_throwsAndTouchesNothing() {
-        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, null))
+        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, null, IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_AMOUNT_INVALID);
 
@@ -298,7 +305,7 @@ class WalletServiceImplTest {
     void withdraw_whenWalletFrozen_throws() {
         when(walletMapper.selectByUser(TENANT, USER_ID)).thenReturn(wallet(WALLET_ID, "100.00", 0));
 
-        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("1.00")))
+        assertThatThrownBy(() -> walletService.withdraw(TENANT, USER_ID, new BigDecimal("1.00"), IDEM_KEY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_FROZEN);
 

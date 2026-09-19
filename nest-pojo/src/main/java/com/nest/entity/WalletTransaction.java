@@ -26,6 +26,8 @@ public class WalletTransaction {
     private String source;
     private Integer status;
     private String bizNo;
+    /** 幂等键（提现防重；其余流水为 NULL，MySQL 唯一索引对 NULL 不去重） */
+    private String idemKey;
     private Long peerTxnId;
     private String remark;
     private LocalDateTime createTime;

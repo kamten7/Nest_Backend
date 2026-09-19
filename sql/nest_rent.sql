@@ -261,11 +261,13 @@ CREATE TABLE IF NOT EXISTS wallet_transaction (
     source VARCHAR(20) DEFAULT 'SIMULATE' COMMENT '资金来源 SIMULATE/WECHAT_PAY',
     status TINYINT DEFAULT 1 COMMENT '状态 1成功 0处理中 2失败',
     biz_no VARCHAR(32) DEFAULT NULL COMMENT '业务单号(关联支付记录，同批次共享)',
+    idem_key VARCHAR(64) DEFAULT NULL COMMENT '幂等键(客户端生成；提现防重，双击/重试只受理一次)',
     peer_txn_id BIGINT DEFAULT NULL COMMENT '对端流水ID(同笔转账双端关联)',
     remark VARCHAR(200) DEFAULT NULL COMMENT '备注',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY idx_user (user_type, user_id),
-    KEY idx_biz (biz_no)
+    KEY idx_biz (biz_no),
+    UNIQUE KEY uk_idem (idem_key) COMMENT '幂等兜底：同键只能落一条流水（NULL 不受约束，非提现场景全部为 NULL）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='钱包流水表';
 
 -- ==================== 租房订单表 ====================
@@ -287,7 +289,8 @@ CREATE TABLE IF NOT EXISTS rent_order (
     UNIQUE KEY uk_order_no (order_no),
     KEY idx_tenant (tenant_id),
     KEY idx_landlord (landlord_id),
-    KEY idx_house (house_id)
+    KEY idx_house (house_id),
+    KEY idx_status_create (status, create_time) COMMENT '状态+时间复合：定时任务按状态扫表（押金超时/退款/提醒）不再全表扫'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租房订单表';
 
 -- ==================== 租房支付记录表 ====================
