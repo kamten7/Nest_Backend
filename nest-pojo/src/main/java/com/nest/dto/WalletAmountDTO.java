@@ -17,12 +17,6 @@ public class WalletAmountDTO {
     @Digits(integer = 10, fraction = 2, message = "金额最多保留两位小数")
     private BigDecimal amount;
 
-    /**
-     * 幂等键（仅提现必填，充值不要求）：前端在「打开提现弹窗」时生成一次 UUID，
-     * 同一弹窗内重复提交会命中同一键。是否必填由 service 层按业务判定（recharge/withdraw
-     * 共用本 DTO，不能在注解层一刀切），缺失时提现会被拒绝。
-     * <p>服务端以 {@code wallet_transaction.idem_key} 唯一索引兜底：双击 / 网络重试都不会重复扣款。</p>
-     */
     @Size(max = 64, message = "幂等键过长")
     private String idempotencyKey;
 }

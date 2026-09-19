@@ -3,6 +3,7 @@ package com.nest.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.chat.push.PushService;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
@@ -109,7 +110,7 @@ public class ChatServiceImpl implements ChatService {
     /** 获取用户会话列表（分页）。 */
     @Override
     public PageResult<ConversationVO> listConversations(String userType, Long userId, Integer page, Integer pageSize) {
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<Conversation> conversations = conversationMapper.selectByUser(userType, userId);
         PageInfo<Conversation> pageInfo = new PageInfo<>(conversations);
 
@@ -149,7 +150,7 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(MessageConstant.CONVERSATION_NOT_FOUND);
         }
 
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<Message> messages = messageMapper.selectByConversation(conversationId);
         PageInfo<Message> pageInfo = new PageInfo<>(messages);
 

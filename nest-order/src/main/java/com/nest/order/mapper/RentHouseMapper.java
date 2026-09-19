@@ -5,10 +5,6 @@ import org.apache.ibatis.annotations.Param;
 
 /**
  * 订单模块「写房源状态」的 Mapper。
- *
- * <p>与只读的 {@code RentSourceMapper} 分离：房源状态由订单事件驱动流转
- * （确认租房→在租中、放弃租房→恢复上架、退租结算→下架），都在这里集中写入。
- * 全部用条件更新，天然幂等。</p>
  */
 @Mapper
 public interface RentHouseMapper {

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /** 发表评论请求体。rating 可为空：退租租客发「评价」带星级，看房用户发「评论」可不打分。
- *  @Min/@Max 对 null 天然放行，因此无需 @NotNull。 */
+ *  @Min/@Max 对 null 天然放行，因此无需 @NotNull*/
 @Data
 public class ReviewCreateDTO {
 

@@ -3,6 +3,7 @@ package com.nest.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.common.BaseContext;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.MessageConstant;
 import com.nest.entity.Favorite;
@@ -71,7 +72,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     public PageResult<FavoriteVO> myList(Integer page, Integer pageSize) {
         Long tenantId = BaseContext.getCurrentId();
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<Favorite> favorites = favoriteMapper.selectByTenant(tenantId);
         PageInfo<Favorite> pageInfo = new PageInfo<>(favorites);
 

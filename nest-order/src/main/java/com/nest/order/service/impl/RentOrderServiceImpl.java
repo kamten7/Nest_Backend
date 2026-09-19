@@ -3,6 +3,7 @@ package com.nest.order.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.chat.push.PushService;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.AppointmentStatus;
 import com.nest.constant.HouseStatus;
@@ -206,9 +207,7 @@ public class RentOrderServiceImpl implements RentOrderService {
 
     @Override
     public PageResult<RentOrderVO> listByTenant(Long tenantId, Integer status, Integer page, Integer pageSize) {
-        int p = (page == null || page < 1) ? 1 : page;
-        int ps = (pageSize == null || pageSize < 1) ? 10 : pageSize;
-        PageHelper.startPage(p, ps);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<RentOrder> list = rentOrderMapper.selectByTenant(tenantId, status);
         PageInfo<RentOrder> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), toVOs(list));
@@ -340,9 +339,7 @@ public class RentOrderServiceImpl implements RentOrderService {
 
     @Override
     public PageResult<RentOrderVO> listByLandlord(Long landlordId, Integer status, Integer page, Integer pageSize) {
-        int p = (page == null || page < 1) ? 1 : page;
-        int ps = (pageSize == null || pageSize < 1) ? 10 : pageSize;
-        PageHelper.startPage(p, ps);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<RentOrder> list = rentOrderMapper.selectByLandlord(landlordId, status);
         PageInfo<RentOrder> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), toVOs(list));

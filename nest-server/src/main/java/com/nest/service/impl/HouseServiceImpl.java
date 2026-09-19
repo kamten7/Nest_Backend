@@ -3,6 +3,7 @@ package com.nest.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.common.BaseContext;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.HouseStatus;
 import com.nest.constant.JwtConstant;
@@ -143,13 +144,11 @@ public class HouseServiceImpl implements HouseService {
         log.info("房源删除: id={}", houseId);
     }
 
-    /** 我的房源列表（房东端，分页）。参数来自 @RequestParam 裸值，与 HouseQueryDTO 同样收口。 */
+    /** 我的房源列表（房东端，分页）。参数来自 @RequestParam 裸值，统一走 PageParam 收口。 */
     @Override
     public PageResult<HouseVO> myList(Integer page, Integer pageSize) {
-        int p = (page == null || page < 1) ? 1 : Math.min(page, 1000);
-        int ps = (pageSize == null) ? 10 : Math.max(1, Math.min(pageSize, 100));
         Long landlordId = BaseContext.getCurrentId();
-        PageHelper.startPage(p, ps);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<House> houses = houseMapper.selectByLandlord(landlordId);
         PageInfo<House> pageInfo = new PageInfo<>(houses);
 

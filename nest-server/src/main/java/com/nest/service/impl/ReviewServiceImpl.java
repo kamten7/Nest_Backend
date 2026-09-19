@@ -3,6 +3,7 @@ package com.nest.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.common.BaseContext;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
@@ -43,13 +44,6 @@ import java.util.stream.Collectors;
 
 /**
  * 评论服务实现。
- *
- * <p>数据模型：{@code review} 是顶楼帖（可带星评价，也可不带星的纯评论/提问），
- * {@code review_comment} 是楼中回复（靠 parent_id 支持「在别人评论下追问」），
- * {@code review_like} / {@code review_comment_like} 分别记录顶楼帖与回复的点赞。
- *
- * <p>身份口径：点赞/回复者一律用 (userType, userId) 二元组定位，
- * 只存 userId 会让「租客 3」与「房东 3」互相串赞（历史缺陷，已修）。
  */
 @Slf4j
 @Service
@@ -112,7 +106,7 @@ public class ReviewServiceImpl implements ReviewService {
         int pageNum = (page == null || page < 1) ? 1 : page;
         int size = (pageSize == null || pageSize < 1) ? 10 : Math.min(pageSize, MAX_PAGE_SIZE);
 
-        PageHelper.startPage(pageNum, size);
+        PageHelper.startPage(PageParam.pageOf(pageNum), PageParam.pageSizeOf(size));
         List<Review> reviews = reviewMapper.selectByHouse(houseId);
         PageInfo<Review> pageInfo = new PageInfo<>(reviews);
 

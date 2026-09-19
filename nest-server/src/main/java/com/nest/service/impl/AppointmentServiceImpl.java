@@ -4,6 +4,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.nest.chat.push.PushService;
 import com.nest.common.BaseContext;
+import com.nest.common.PageParam;
 import com.nest.common.PageResult;
 import com.nest.constant.AppointmentStatus;
 import com.nest.constant.MessageConstant;
@@ -85,7 +86,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Override
     public PageResult<AppointmentVO> myList(Integer page, Integer pageSize) {
         Long tenantId = BaseContext.getCurrentId();
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<Appointment> list = appointmentMapper.selectByTenant(tenantId);
         PageInfo<Appointment> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), buildVOs(list));
@@ -116,7 +117,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Override
     public PageResult<AppointmentVO> landlordList(Integer status, Integer page, Integer pageSize) {
         Long landlordId = BaseContext.getCurrentId();
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(PageParam.pageOf(page), PageParam.pageSizeOf(pageSize));
         List<Appointment> list = appointmentMapper.selectByLandlord(landlordId, status);
         PageInfo<Appointment> pageInfo = new PageInfo<>(list);
         return PageResult.of(pageInfo.getTotal(), buildVOs(list));

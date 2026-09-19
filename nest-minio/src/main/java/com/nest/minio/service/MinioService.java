@@ -28,10 +28,6 @@ public class MinioService {
 
     /**
      * 允许的后缀 → 服务端强制写入的 Content-Type。
-     * <p>键是白名单（拒绝 html/svg/js 等可被浏览器执行的后缀），值是权威 MIME ——
-     * 绝不使用 {@code file.getContentType()}，那是客户端可控字段。若直接透传，
-     * 攻击者可上传一份 HTML 却声明 {@code text/html}，在其公开可读的 bucket 上
-     * 形成存储型 XSS（同源下还能带走 localStorage 里的 token）。</p>
      */
     private static final Map<String, String> ALLOWED_EXTENSIONS = Map.of(
             "jpg", "image/jpeg",
@@ -54,8 +50,6 @@ public class MinioService {
 
     /**
      * 单文件业务上限（默认 10MB）。
-     * <p>Spring 的 {@code spring.servlet.multipart.max-file-size} 是容器级粗筛（20MB），
-     * 这里是业务级细筛，可分别收紧头像等场景。</p>
      */
     @Value("${nest.minio.image-max-size:10485760}")
     private long maxFileSize;
