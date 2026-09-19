@@ -89,15 +89,27 @@ public class HouseServiceImpl implements HouseService {
         log.info("房源更新: id={}", houseId);
     }
 
-    /** 上下架/重新发布（房东端）。status: 1=上架, 0=下架；在租中(2) 不允许手动改。 */
+    /**
+     * 上下架/重新发布（房东端）。status: 1=上架, 0=下架；在租中(2) 不允许手动改。
+     *
+     * <p>两道防线：① 入口白名单——手动上下架只允许 0/1，其余值（含 2 与任意脏值）直接拒绝，
+     * 状态机的「在租中」只能由订单模块流转置入；② SQL 条件守卫——{@code updateStatus} 带
+     * {@code AND status != 2}，与「确认租房」并发时条件 UPDATE 抢不到就影响行数为 0，
+     * 据此拒绝，杜绝「在租中被下架覆盖」的 TOCTOU。与订单模块的
+     * {@code activateAfterDeposit}/{@code markAvailableIfRented} 同一模式，全项目统一。</p>
+     */
     @Override
     public void updateStatus(Long houseId, Integer status) {
+        if (status == null || (status != HouseStatus.AVAILABLE && status != HouseStatus.OFFLINE)) {
+            log.warn("拒绝非法的房源状态参数: id={}, status={}", houseId, status);
+            throw new BusinessException(MessageConstant.HOUSE_STATUS_INVALID);
+        }
         validateOwnership(houseId);
-        House cur = houseMapper.selectById(houseId);
-        if (cur != null && cur.getStatus() != null && cur.getStatus() == HouseStatus.RENTED) {
+        int rows = houseMapper.updateStatus(houseId, status);
+        if (rows == 0) {
+            // 能走到这里说明归属校验已通过（房源存在），行数为 0 只剩一种解释：刚被置入在租中
             throw new BusinessException(MessageConstant.HOUSE_RENTED_NO_MANUAL);
         }
-        houseMapper.updateStatus(houseId, status);
         log.info("房源状态变更: id={}, status={}", houseId, status);
     }
 
@@ -131,11 +143,13 @@ public class HouseServiceImpl implements HouseService {
         log.info("房源删除: id={}", houseId);
     }
 
-    /** 我的房源列表（房东端，分页）。 */
+    /** 我的房源列表（房东端，分页）。参数来自 @RequestParam 裸值，与 HouseQueryDTO 同样收口。 */
     @Override
     public PageResult<HouseVO> myList(Integer page, Integer pageSize) {
+        int p = (page == null || page < 1) ? 1 : Math.min(page, 1000);
+        int ps = (pageSize == null) ? 10 : Math.max(1, Math.min(pageSize, 100));
         Long landlordId = BaseContext.getCurrentId();
-        PageHelper.startPage(page, pageSize);
+        PageHelper.startPage(p, ps);
         List<House> houses = houseMapper.selectByLandlord(landlordId);
         PageInfo<House> pageInfo = new PageInfo<>(houses);
 

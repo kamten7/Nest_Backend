@@ -104,6 +104,8 @@ public final class MessageConstant {
     public static final String HOUSE_NOT_RENTABLE = "该房源已被租出或已下架，无法确认租房";
     /** 房源在租中，房东不能手动改状态 */
     public static final String HOUSE_RENTED_NO_MANUAL = "房源在租中，无法手动上下架，请先完成退租";
+    /** 房源状态参数不合法（手动上下架只允许 上架1/下架0） */
+    public static final String HOUSE_STATUS_INVALID = "房源状态参数不合法，仅支持上架或下架";
     /** 房源在租中或仍有未终结的租房订单，房东不能删除 */
     public static final String HOUSE_RENTED_CANNOT_DELETE = "房源在租中或仍有未完成的租房订单，无法删除，请先完成退租或取消订单";
     /** 仅待缴押金的订单可放弃租房 */

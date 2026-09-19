@@ -20,4 +20,15 @@ public class HouseQueryDTO {
     private Integer pageSize = 10;
     private Double userLat;
     private Double userLng;
+
+    /**
+     * 分页参数在入口收口：page ≥ 1（上限 1000 仅防极端 offset），pageSize ∈ [1, 100]。
+     */
+    public void setPage(Integer page) {
+        this.page = (page == null || page < 1) ? 1 : Math.min(page, 1000);
+    }
+
+    public void setPageSize(Integer pageSize) {
+        this.pageSize = (pageSize == null) ? 10 : Math.max(1, Math.min(pageSize, 100));
+    }
 }

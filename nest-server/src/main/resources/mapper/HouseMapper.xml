@@ -44,8 +44,13 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 手动上下架专用：WHERE 带 status != 2（RENTED）守卫。
+         若不守卫，房东点下架与「确认租房置入在租中」并发时，会把 2 改成 0 —— 房子在租中却被标成已下架，
+         后续退租结算全部错乱。在租中状态只允许由订单模块的状态机流转（activateAfterDeposit / markAvailableIfRented）。
+         影响行数 = 0 即「已变在租中」，由 service 层据此拒绝。 -->
     <update id="updateStatus">
-        UPDATE house SET status = #{status}, update_time = NOW() WHERE id = #{id}
+        UPDATE house SET status = #{status}, update_time = NOW()
+        WHERE id = #{id} AND status != 2
     </update>
 
     <select id="selectById" resultType="House">
