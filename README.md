@@ -122,31 +122,31 @@ backend/
 **🏠 房东端首页** — 房源总览与数据概览
 
 <p align="center">
-  <img src="docs/image/admin-01-home.png" alt="房东端 · 首页" width="88%">
+  <img src="docs/image/admin/房东端首页.png" alt="房东端 · 首页" width="88%">
 </p>
 
 **➕ 添加房源** — 房源信息填写 + 地图选点 + 多图上传
 
 <p align="center">
-  <img src="docs/image/admin-02-add-house.png" alt="房东端 · 添加房源" width="88%">
+  <img src="docs/image/admin/房东端添加房源.png" alt="房东端 · 添加房源" width="88%">
 </p>
 
 **💬 聊天** — 与租客一对一会话
 
 <p align="center">
-  <img src="docs/image/admin-03-chat.png" alt="房东端 · 聊天" width="88%">
+  <img src="docs/image/admin/房东端聊天页面.png" alt="房东端 · 聊天" width="88%">
 </p>
 
 **💰 钱包** — 在租押金（不可提现）/ 可提现余额 / 收支流水
 
 <p align="center">
-  <img src="docs/image/admin-04-wallet.png" alt="房东端 · 钱包" width="88%">
+  <img src="docs/image/admin/房东端钱包页面.png" alt="房东端 · 钱包" width="88%">
 </p>
 
 **👤 个人主页** — 房东资料与账号信息
 
 <p align="center">
-  <img src="docs/image/admin-05-profile.png" alt="房东端 · 个人主页" width="88%">
+  <img src="docs/image/admin/房东端主页.png" alt="房东端 · 个人主页" width="88%">
 </p>
 
 ### 租客端（微信小程序）
