@@ -72,7 +72,10 @@ public interface RentOrderMapper {
      */
     List<Long> selectExpiredPendingDepositIds(@Param("timeoutMinutes") int timeoutMinutes);
 
-    /** 房东「在租」订单的押金总额 —— 这部分钱在房东钱包里但不可提现 */
-    BigDecimal sumLockedDeposit(@Param("landlordId") Long landlordId,
-                                @Param("statuses") int[] statuses);
+    /**
+     * 房东「锁定金额」总额 —— 在租订单的押金 + 未消耗的预付租金。
+     */
+    BigDecimal sumLockedAmount(@Param("landlordId") Long landlordId,
+                               @Param("statuses") int[] statuses,
+                               @Param("terminatingStatus") int terminatingStatus);
 }

@@ -281,10 +281,7 @@ public class RentOrderServiceImpl implements RentOrderService {
         RentOrder order = requireOwnedOrder(tenantId, orderId);
         requireRenting(order);
 
-        int paidMonths = order.getPaidMonths() == null ? 0 : order.getPaidMonths();
-        if (paidMonths < 1) {
-            throw new BusinessException("请先缴纳当期租金后再申请退租");
-        }
+        /* next_due_period 是缴押金时写入的，也是下面推导预付退款的必需输入；为空说明数据异常，直接拒绝。 */
         if (order.getNextDuePeriod() == null || order.getNextDuePeriod().isBlank()) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
@@ -298,6 +295,19 @@ public class RentOrderServiceImpl implements RentOrderService {
          * 退租口径：申请当月视为「已住满」，即便只住 1 天也不退；
          * 只有「当月之后、且已提前缴过」的整月才算未消耗预付，结算时与押金一起退回。
          * next_due_period 是下一个待缴期，所以已缴到的最后一期 = next_due_period - 1。
+         *
+         * ⚠️ 这里**不再**要求「已缴过当期租金」（2026-09-21 移除该前置）：
+         * 旧写法 paid_months < 1 直接拒绝，导致「刚缴完押金就反悔」的订单没有任何出口——
+         * 主动取消只对「待缴押金(1)」开放，定时任务也只够到状态 1（超时取消）和 3（退租兜底），
+         * 于是订单永远停在「租房中(2)」：房源在租客端查不到（列表只查 status=1）、
+         * 房东也改不了它的状态（updateStatus 带 status != 2 守卫）⇒ 房源实质报废；
+         * 押金还一直计入房东锁定额，房东提不出、租客也拿不回。
+         *
+         * 现在的口径：交得起押金就退得了租。paid_months = 0 时下面两个公式天然得出
+         * prepaidMonths = 0 / prepaidRefund = 0 —— 因为 next_due_period 只在缴租成功时才后移，
+         * 没缴过租就等同于「已缴到的最后一期」不满当月，不存在未消耗的预付。
+         * 因此「起租当月租金」不再强制预缴，而是由房东在结算时用 deductAmount 主张
+         * （deduct ≤ 押金，见 settleRefund），房源与押金都能正常回到市场。
          */
         String effectiveEnd = LocalDate.now().format(PERIOD_FORMATTER);
         String paidThrough = shiftPeriod(order.getNextDuePeriod(), -1);
@@ -561,11 +571,12 @@ public class RentOrderServiceImpl implements RentOrderService {
     }
 
     @Override
-    public BigDecimal lockedDepositOf(Long landlordId) {
+    public BigDecimal lockedAmountOf(Long landlordId) {
         if (landlordId == null) {
             return ZERO;
         }
-        BigDecimal locked = rentOrderMapper.sumLockedDeposit(landlordId, RentOrderStatus.DEPOSIT_LOCKED_STATUS);
+        BigDecimal locked = rentOrderMapper.sumLockedAmount(landlordId, RentOrderStatus.DEPOSIT_LOCKED_STATUS,
+                RentOrderStatus.TERMINATING);
         return locked == null ? ZERO : locked;
     }
 

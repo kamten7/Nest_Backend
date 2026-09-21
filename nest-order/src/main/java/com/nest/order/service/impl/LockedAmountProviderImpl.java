@@ -10,7 +10,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
-/** 押金锁定金额提供方实现。 */
+/**
+ * 锁定金额提供方实现：在租订单的押金 + 未消耗的预付租金。
+ * 两者都已进房东余额，但都要留住以备退租退回，故一并锁定、不可提现。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,12 +28,13 @@ public class LockedAmountProviderImpl implements LockedAmountProvider {
         if (!JwtConstant.TYPE_LANDLORD.equals(userType) || userId == null) {
             return ZERO;
         }
-        BigDecimal locked = rentOrderMapper.sumLockedDeposit(userId, RentOrderStatus.DEPOSIT_LOCKED_STATUS);
+        BigDecimal locked = rentOrderMapper.sumLockedAmount(userId, RentOrderStatus.DEPOSIT_LOCKED_STATUS,
+                RentOrderStatus.TERMINATING);
         if (locked == null) {
             return ZERO;
         }
         if (locked.signum() > 0) {
-            log.debug("房东押金锁定额: landlordId={}, locked={}", userId, locked);
+            log.debug("房东锁定金额(押金+预付租金): landlordId={}, locked={}", userId, locked);
         }
         return locked;
     }

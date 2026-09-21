@@ -133,6 +133,26 @@ class RentTerminateRefundTest {
     }
 
     @Test
+    @DisplayName("刚缴完押金、租金一个月都没缴就退租：不再被拒，且无预付可退（2026-09-21 修掉的死锁）")
+    void terminate_whenNoRentPaidYet_isAllowedWithNothingPrepaid() {
+        // paid_months = 0：只缴了押金，next_due_period 仍停在缴押金时的当月（只有缴租成功才会后移）
+        RentOrder order = rentingOrder(0, YearMonth.now());
+        when(rentOrderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(rentTerminationMapper.selectByOrderId(ORDER_ID)).thenReturn(null);
+        when(rentOrderMapper.toTerminating(ORDER_ID)).thenReturn(1);
+
+        rentOrderService.terminate(TENANT_ID, ORDER_ID, "刚租就反悔");
+
+        ArgumentCaptor<RentTermination> captor = ArgumentCaptor.forClass(RentTermination.class);
+        verify(rentTerminationMapper).insert(captor.capture());
+        RentTermination saved = captor.getValue();
+        assertThat(saved.getEffectiveEndPeriod()).isEqualTo(YearMonth.now().toString());
+        assertThat(saved.getPrepaidMonths()).isZero();
+        assertThat(saved.getPrepaidRefundAmount()).isEqualByComparingTo("0.00");
+        verify(rentOrderMapper).toTerminating(ORDER_ID);
+    }
+
+    @Test
     @DisplayName("冷却期满结算：押金退回与预付租金退回分两笔转账，金额分别为 1500 与 1000")
     void settleRefund_afterCooldown_transfersDepositAndPrepaidSeparately() {
         RentOrder order = rentingOrder(2, YearMonth.now().plusMonths(2));

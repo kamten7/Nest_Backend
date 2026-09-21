@@ -70,6 +70,9 @@ public interface RentOrderService {
     boolean autoCancelExpiredOrder(Long orderId, int timeoutMinutes);
 
 
-    /** 房东「在租」订单的押金总额：这部分钱在房东钱包里但不可提现。 */
-    BigDecimal lockedDepositOf(Long landlordId);
+    /**
+     * 房东「在租」订单的锁定金额总额 = 押金 + 未消耗的预付租金。
+     * 这部分钱在房东钱包里但不可提现，须留住以备退租结算时退回租客。
+     */
+    BigDecimal lockedAmountOf(Long landlordId);
 }
