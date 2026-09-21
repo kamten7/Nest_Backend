@@ -5,9 +5,11 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO rent_termination (order_id, tenant_id, apply_time, effective_end_period,
-                                      deduct_amount, refund_amount, refund_status, remark, create_time)
+                                      deduct_amount, refund_amount, prepaid_months, prepaid_refund_amount,
+                                      refund_status, remark, create_time)
         VALUES (#{orderId}, #{tenantId}, #{applyTime}, #{effectiveEndPeriod},
-                #{deductAmount}, #{refundAmount}, #{refundStatus}, #{remark}, NOW())
+                #{deductAmount}, #{refundAmount}, #{prepaidMonths}, #{prepaidRefundAmount},
+                #{refundStatus}, #{remark}, NOW())
     </insert>
 
     <select id="selectById" resultType="RentTermination">
@@ -18,25 +20,26 @@
         SELECT * FROM rent_termination WHERE order_id = #{orderId} ORDER BY id DESC LIMIT 1
     </select>
 
-    <!-- 标记押金已退回：带 refund_status=0 条件，并发/重跑时只有一次能成功（防双倍退款） -->
+    <!-- 标记结算完成：带 refund_status=0 条件，并发/重跑时只有一次能成功（防双倍退款） -->
     <update id="markRefunded">
         UPDATE rent_termination
         SET deduct_amount = #{deductAmount},
             refund_amount = #{refundAmount},
+            prepaid_refund_amount = #{prepaidRefundAmount},
             refund_status = 1,
             refund_time = #{refundTime},
             refund_txn_id = #{refundTxnId},
+            prepaid_txn_id = #{prepaidTxnId},
             remark = #{remark}
         WHERE id = #{id} AND refund_status = 0
     </update>
 
-    <!-- 房东超期未结算：已购租期末周期的月末 + 宽限期已过 ⇒ 由定时任务按全额退还（不扣款） -->
+    <!-- 房东超期未结算：退租申请满冷却期 ⇒ 系统按「押金全额 + 未消耗预付租金」自动退回。
+         谓词只对常量侧做 DATE_SUB，列上无函数，refund_status 走 idx_refund。 -->
     <select id="selectAutoRefundDue" resultType="RentTermination">
         SELECT * FROM rent_termination
         WHERE refund_status = 0
-          AND #{today} &gt; DATE_ADD(
-                LAST_DAY(STR_TO_DATE(CONCAT(effective_end_period, '-01'), '%Y-%m-%d')),
-                INTERVAL #{graceDays} DAY)
+          AND apply_time &lt;= DATE_SUB(#{today}, INTERVAL #{graceDays} DAY)
         ORDER BY id
     </select>
 

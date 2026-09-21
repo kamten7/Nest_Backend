@@ -43,8 +43,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -284,12 +285,26 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (paidMonths < 1) {
             throw new BusinessException("请先缴纳当期租金后再申请退租");
         }
-        String effectiveEnd = shiftPeriod(order.getNextDuePeriod(), -1);
+        if (order.getNextDuePeriod() == null || order.getNextDuePeriod().isBlank()) {
+            throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
+        }
 
         RentTermination existed = rentTerminationMapper.selectByOrderId(orderId);
         if (existed != null && existed.getRefundStatus() != null && existed.getRefundStatus() == 0) {
             throw new BusinessException(MessageConstant.TERMINATION_ALREADY_APPLIED);
         }
+
+        /*
+         * 退租口径：申请当月视为「已住满」，即便只住 1 天也不退；
+         * 只有「当月之后、且已提前缴过」的整月才算未消耗预付，结算时与押金一起退回。
+         * next_due_period 是下一个待缴期，所以已缴到的最后一期 = next_due_period - 1。
+         */
+        String effectiveEnd = LocalDate.now().format(PERIOD_FORMATTER);
+        String paidThrough = shiftPeriod(order.getNextDuePeriod(), -1);
+        int prepaidMonths = Math.max(0, monthSpan(effectiveEnd, paidThrough));
+        BigDecimal prepaidRefund = nullToZero(order.getMonthlyRent())
+                .multiply(BigDecimal.valueOf(prepaidMonths))
+                .setScale(2, RoundingMode.HALF_UP);
 
         rentTerminationMapper.insert(RentTermination.builder()
                 .orderId(orderId)
@@ -298,6 +313,8 @@ public class RentOrderServiceImpl implements RentOrderService {
                 .effectiveEndPeriod(effectiveEnd)
                 .deductAmount(ZERO)
                 .refundAmount(ZERO)
+                .prepaidMonths(prepaidMonths)
+                .prepaidRefundAmount(prepaidRefund)
                 .refundStatus(0)
                 .remark(remark)
                 .build());
@@ -306,7 +323,9 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (rows == 0) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
-        log.info("退租申请已提交: orderId={}, effectiveEndPeriod={}, remark={}", orderId, effectiveEnd, remark);
+        log.info("退租申请已提交: orderId={}, effectiveEndPeriod={}, 可退预付={} 个月/{}元, 冷却期至={}, remark={}",
+                orderId, effectiveEnd, prepaidMonths, prepaidRefund,
+                LocalDateTime.now().plusDays(RentConstant.SETTLE_GRACE_DAYS), remark);
         return reloadAndDetail(orderId);
     }
 
@@ -374,9 +393,11 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (termination == null || termination.getRefundStatus() == null || termination.getRefundStatus() != 0) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
-        LocalDate periodEnd = lastDayOfPeriod(termination.getEffectiveEndPeriod());
-        if (!LocalDate.now().isAfter(periodEnd)) {
-            throw new BusinessException(MessageConstant.RENT_SETTLE_NOT_DUE);
+        // 结算门槛：退租申请满冷却期即可处理，不再要求「已购租期走完」——预付的整月租金在结算时一并退回。
+        LocalDateTime cooldownDeadline = settleCooldownDeadline(termination);
+        if (LocalDateTime.now().isBefore(cooldownDeadline)) {
+            throw new BusinessException(MessageConstant.RENT_SETTLE_NOT_DUE + "（需满 "
+                    + RentConstant.SETTLE_GRACE_DAYS + " 天，" + cooldownDeadline.toLocalDate() + " 起可结算）");
         }
 
         BigDecimal deduct = (deductAmount == null) ? ZERO : deductAmount.setScale(2, RoundingMode.HALF_UP);
@@ -388,15 +409,17 @@ public class RentOrderServiceImpl implements RentOrderService {
             throw new BusinessException(MessageConstant.RENT_DEDUCT_EXCEED_DEPOSIT);
         }
         BigDecimal refund = deposit.subtract(deduct);
+        BigDecimal prepaidRefund = nullToZero(termination.getPrepaidRefundAmount());
 
-        doRefund(order, termination, deduct, refund,
+        doRefund(order, termination, deduct, refund, prepaidRefund,
                 remark != null && !remark.isBlank() ? remark : WalletConstant.bizText(WalletConstant.BIZ_DEPOSIT_REFUND));
         // 退租结算完成：房源在租中(2) → 下架(0)。需房东手动重新发布。
         int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
         if (offRows == 0) {
             log.warn("退租结算后房源未置为下架（状态非 2 或已被改）: orderId={}, houseId={}", orderId, order.getHouseId());
         }
-        log.info("退租结算完成(房东): orderId={}, deposit={}, deduct={}, refund={}", orderId, deposit, deduct, refund);
+        log.info("退租结算完成(房东): orderId={}, deposit={}, deduct={}, 押金退回={}, 预付租金退回={}",
+                orderId, deposit, deduct, refund, prepaidRefund);
         return reloadAndDetail(orderId);
     }
 
@@ -452,10 +475,8 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (termination == null || termination.getRefundStatus() == null || termination.getRefundStatus() != 0) {
             return false;
         }
-        // 兜底复核：确实已过宽限期（防止任务取到过期快照后延迟执行）
-        LocalDate deadline = lastDayOfPeriod(termination.getEffectiveEndPeriod())
-                .plusDays(RentConstant.SETTLE_GRACE_DAYS);
-        if (!LocalDate.now().isAfter(deadline)) {
+        // 兜底复核：确实已满冷却期（防止任务取到过期快照后延迟执行）
+        if (LocalDateTime.now().isBefore(settleCooldownDeadline(termination))) {
             return false;
         }
         RentOrder order = rentOrderMapper.selectById(termination.getOrderId());
@@ -463,14 +484,16 @@ public class RentOrderServiceImpl implements RentOrderService {
             return false;
         }
         BigDecimal deposit = nullToZero(order.getDeposit());
-        doRefund(order, termination, ZERO, deposit, "房东超期未结算，系统自动全额退回押金");
+        BigDecimal prepaidRefund = nullToZero(termination.getPrepaidRefundAmount());
+        doRefund(order, termination, ZERO, deposit, prepaidRefund,
+                "房东超期未结算，系统自动全额退回押金与预付租金");
         // 自动结算同样要把房源置为下架
         int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
         if (offRows == 0) {
             log.warn("自动退租结算后房源未置为下架: orderId={}, houseId={}", order.getId(), order.getHouseId());
         }
-        log.info("退租结算完成(系统自动): orderId={}, terminationId={}, refund={}",
-                order.getId(), terminationId, deposit);
+        log.info("退租结算完成(系统自动): orderId={}, terminationId={}, 押金退回={}, 预付租金退回={}",
+                order.getId(), terminationId, deposit, prepaidRefund);
         return true;
     }
 
@@ -547,21 +570,34 @@ public class RentOrderServiceImpl implements RentOrderService {
     }
 
 
-    /** 执行押金退回：房东钱包 → 租客钱包，并标记退租记录、订单置「已退租」。 */
+    /**
+     * 执行退租结算的资金退回：押金退回 + 未消耗的预付租金退回，各走一条 transferPay 流水。
+     * 两笔分开记（bizType 与 txnId 各自独立），租客钱包的入账可与结算单逐笔对上。
+     */
     private void doRefund(RentOrder order, RentTermination termination,
-                          BigDecimal deduct, BigDecimal refund, String remark) {
+                          BigDecimal deduct, BigDecimal depositRefund,
+                          BigDecimal prepaidRefund, String remark) {
+        BigDecimal prepaid = nullToZero(prepaidRefund);
         Long refundTxnId = null;
-        if (refund.signum() > 0) {
-            String bizNo = genBizNo("RFD");
+        if (depositRefund.signum() > 0) {
             Long[] txnIds = walletService.transferPay(
                     JwtConstant.TYPE_LANDLORD, order.getLandlordId(),
                     JwtConstant.TYPE_TENANT, order.getTenantId(),
-                    refund,
-                    WalletConstant.BIZ_DEPOSIT_REFUND, WalletConstant.BIZ_DEPOSIT_REFUND, bizNo);
+                    depositRefund,
+                    WalletConstant.BIZ_DEPOSIT_REFUND, WalletConstant.BIZ_DEPOSIT_REFUND, genBizNo("RFD"));
             refundTxnId = txnIds[1];
         }
-        int rows = rentTerminationMapper.markRefunded(termination.getId(), deduct, refund,
-                LocalDateTime.now(), refundTxnId, remark);
+        Long prepaidTxnId = null;
+        if (prepaid.signum() > 0) {
+            Long[] txnIds = walletService.transferPay(
+                    JwtConstant.TYPE_LANDLORD, order.getLandlordId(),
+                    JwtConstant.TYPE_TENANT, order.getTenantId(),
+                    prepaid,
+                    WalletConstant.BIZ_RENT_REFUND, WalletConstant.BIZ_RENT_REFUND, genBizNo("PRF"));
+            prepaidTxnId = txnIds[1];
+        }
+        int rows = rentTerminationMapper.markRefunded(termination.getId(), deduct, depositRefund,
+                prepaid, refundTxnId, prepaidTxnId, LocalDateTime.now(), remark);
         if (rows == 0) {
             throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
         }
@@ -740,7 +776,15 @@ public class RentOrderServiceImpl implements RentOrderService {
         vo.setEffectiveEndPeriod(t.getEffectiveEndPeriod());
         vo.setDeductAmount(nullToZero(t.getDeductAmount()));
         vo.setRefundAmount(nullToZero(t.getRefundAmount()));
+        vo.setPrepaidMonths(t.getPrepaidMonths() == null ? 0 : t.getPrepaidMonths());
+        BigDecimal prepaid = nullToZero(t.getPrepaidRefundAmount());
+        vo.setPrepaidRefundAmount(prepaid);
+        // 两笔退回之和：结算前 refundAmount 为 0，故该字段结算前等于「可退预付」，结算后等于「实退总额」
+        vo.setTotalRefundAmount(vo.getRefundAmount().add(prepaid));
         vo.setRefundStatus(t.getRefundStatus());
+        vo.setApplyTime(t.getApplyTime());
+        vo.setSettleAvailableTime(t.getApplyTime() == null ? null
+                : t.getApplyTime().plusDays(RentConstant.SETTLE_GRACE_DAYS));
         vo.setRefundTime(t.getRefundTime());
         vo.setRemark(t.getRemark());
         vo.setCreateTime(t.getCreateTime());
@@ -761,12 +805,16 @@ public class RentOrderServiceImpl implements RentOrderService {
                 .format(PERIOD_FORMATTER);
     }
 
-    private LocalDate lastDayOfPeriod(String period) {
-        if (period == null || period.isBlank()) {
-            throw new BusinessException(MessageConstant.RENT_ORDER_STATUS_INVALID);
-        }
-        return LocalDate.parse(period + "-01", DateTimeFormatter.ISO_LOCAL_DATE)
-                .with(TemporalAdjusters.lastDayOfMonth());
+    /** 两个 yyyy-MM 周期之间的整月跨度（to 在 from 之后为正）。 */
+    private static int monthSpan(String fromPeriod, String toPeriod) {
+        return (int) ChronoUnit.MONTHS.between(YearMonth.parse(fromPeriod), YearMonth.parse(toPeriod));
+    }
+
+    /** 结算冷却期截止时刻：退租申请时间 + {@code SETTLE_GRACE_DAYS} 天；无申请时间的历史数据视为已可结算。 */
+    private static LocalDateTime settleCooldownDeadline(RentTermination termination) {
+        LocalDateTime applyTime = termination.getApplyTime() != null
+                ? termination.getApplyTime() : termination.getCreateTime();
+        return applyTime == null ? LocalDateTime.MIN : applyTime.plusDays(RentConstant.SETTLE_GRACE_DAYS);
     }
 
     /** 订单号：RO + 时间戳 + 4 位随机（20 位，唯一约束在 order_no 上）。 */

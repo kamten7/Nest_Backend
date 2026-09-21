@@ -43,15 +43,15 @@ public class RentOrderAdminController {
         return Result.success(rentOrderService.getDetailByLandlord(BaseContext.getCurrentId(), orderId));
     }
 
-    /** 退租结算：把押金结清并退回租客。请求体可省略（等价于不扣款、全额退回）。 */
+    /** 退租结算：把押金与未消耗的预付租金一并退回租客。请求体可省略（等价于不扣款、全额退回押金）。 */
     @PostMapping("/{orderId}/refund")
-    @Operation(summary = "退回押金", description = "退租申请中且已购租期结束；可带扣款金额，不传=全额退回")
+    @Operation(summary = "退租结算", description = "退租申请满冷却期(SETTLE_GRACE_DAYS)后即可结算；可带扣款金额(从押金扣)，不传=押金全额退回；未消耗的预付租金另行退回")
     public Result<RentOrderVO> refund(@PathVariable Long orderId,
                                       @Valid @RequestBody(required = false) RentRefundDTO dto) {
         String remark = dto == null ? null : dto.getRemark();
         java.math.BigDecimal deduct = dto == null ? null : dto.getDeductAmount();
         log.info("退租结算: landlordId={}, orderId={}, deductAmount={}", BaseContext.getCurrentId(), orderId, deduct);
-        return Result.success("押金已结算",
+        return Result.success("退租已结算，押金与预付租金已退回",
                 rentOrderService.settleRefund(BaseContext.getCurrentId(), orderId, deduct, remark));
     }
 }

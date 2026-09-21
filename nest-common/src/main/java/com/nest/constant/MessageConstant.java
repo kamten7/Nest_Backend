@@ -79,7 +79,7 @@ public final class MessageConstant {
     public static final String RENT_HOUSE_PRICE_INVALID = "房源租金或押金信息缺失，请联系房东补充";
     public static final String RENT_PAY_PERIOD_INVALID = "缴费周期与订单待缴周期不一致";
     public static final String RENT_DEDUCT_EXCEED_DEPOSIT = "扣款金额不能超过押金总额";
-    public static final String RENT_SETTLE_NOT_DUE = "已购租期尚未结束，暂不能结算押金";
+    public static final String RENT_SETTLE_NOT_DUE = "退租冷却期未满，暂不能结算";
     public static final String RENT_PHONE_REQUIRED = "请先绑定手机号后再租房（我的 → 个人信息）";
     public static final String WALLET_WITHDRAW_LOCKED = "在租订单的押金不可提现，当前可提现金额不足";
     /** 提现缺幂等键 */

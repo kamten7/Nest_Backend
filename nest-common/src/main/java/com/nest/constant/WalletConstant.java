@@ -17,6 +17,8 @@ public final class WalletConstant {
     public static final String BIZ_DEPOSIT_REFUND = "DEPOSIT_REFUND";
     public static final String BIZ_RENT_PAY = "RENT_PAY";
     public static final String BIZ_RENT_INCOME = "RENT_INCOME";
+    /** 退租时把「未消耗的预付整月租金」从房东退回租客。 */
+    public static final String BIZ_RENT_REFUND = "RENT_REFUND";
 
     public static final int DIRECTION_IN = 1;
     public static final int DIRECTION_OUT = -1;
@@ -40,6 +42,7 @@ public final class WalletConstant {
             case BIZ_DEPOSIT_REFUND -> "押金退回";
             case BIZ_RENT_PAY -> "缴纳房租";
             case BIZ_RENT_INCOME -> "收取房租";
+            case BIZ_RENT_REFUND -> "预付租金退回";
             default -> bizType;
         };
     }

@@ -75,7 +75,7 @@ public class RentOrderUserController {
     }
 
     @PostMapping("/{orderId}/terminate")
-    @Operation(summary = "申请退租", description = "提交后停止提醒与缴费，等租期结束结算押金")
+    @Operation(summary = "申请退租", description = "生效期=申请当月(视为已住满不退)；已预付但未消耗的整月租金与押金一并在结算时退回；满冷却期后房东可结算")
     public Result<RentOrderVO> terminate(@PathVariable Long orderId,
                                          @Valid @RequestBody(required = false) RentTerminateDTO dto) {
         String remark = dto == null ? null : dto.getRemark();

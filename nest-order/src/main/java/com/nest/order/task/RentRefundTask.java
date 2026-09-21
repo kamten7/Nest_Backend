@@ -36,7 +36,7 @@ public class RentRefundTask {
                 log.error("押金自动退还失败: terminationId={}", id, e);
             }
         }
-        log.info("押金自动退还任务完成: date={}, 待处理={} 条, 成功={} 条（宽限 {} 天）",
+        log.info("退租自动结算任务完成: date={}, 待处理={} 条, 成功={} 条（退租申请满 {} 天冷却期后仍未结算）",
                 today, dueIds.size(), done, RentConstant.SETTLE_GRACE_DAYS);
     }
 }

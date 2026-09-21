@@ -315,18 +315,46 @@ CREATE TABLE IF NOT EXISTS rent_termination (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT NOT NULL COMMENT '所属订单ID',
     tenant_id BIGINT NOT NULL COMMENT '退租申请人(租客)',
-    apply_time DATETIME NOT NULL COMMENT '退租申请时间',
-    effective_end_period VARCHAR(7) NOT NULL COMMENT '生效的已购租期末周期',
+    apply_time DATETIME NOT NULL COMMENT '退租申请时间（结算冷却期从此刻起算）',
+    effective_end_period VARCHAR(7) NOT NULL COMMENT '退租生效期(yyyy-MM)：申请当月，视为已住满不退',
     deduct_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '结算时从押金中扣除、归房东的金额(物品损坏等)',
     refund_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '实际退回租客的押金金额(= 订单押金 - deduct_amount)',
+    prepaid_months INT NOT NULL DEFAULT 0 COMMENT '退租时未消耗的已预付整月数(生效期之后)',
+    prepaid_refund_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT '预付租金退回金额(= prepaid_months × 月租)',
     refund_status TINYINT DEFAULT 0 COMMENT '押金退回 0待退 1已退',
     refund_time DATETIME DEFAULT NULL COMMENT '押金实际退回时间',
     refund_txn_id BIGINT DEFAULT NULL COMMENT '押金退回流水ID',
+    prepaid_txn_id BIGINT DEFAULT NULL COMMENT '预付租金退回流水ID',
     remark VARCHAR(200) DEFAULT NULL COMMENT '备注',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY idx_order (order_id),
     KEY idx_refund (refund_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='退租申请记录表';
+
+-- 增量迁移：退租资金线补「预付租金退回」三列（旧库执行本文件时补列，新库由上面的 CREATE TABLE 直接带出）。
+-- 用 information_schema 判重，保证整份脚本可重复执行。
+SET @ddl := (SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE rent_termination ADD COLUMN prepaid_months INT NOT NULL DEFAULT 0 COMMENT ''退租时未消耗的已预付整月数'' AFTER refund_amount',
+    'SELECT 1') FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rent_termination' AND COLUMN_NAME = 'prepaid_months');
+PREPARE s FROM @ddl; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @ddl := (SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE rent_termination ADD COLUMN prepaid_refund_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT ''预付租金退回金额'' AFTER prepaid_months',
+    'SELECT 1') FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rent_termination' AND COLUMN_NAME = 'prepaid_refund_amount');
+PREPARE s FROM @ddl; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @ddl := (SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE rent_termination ADD COLUMN prepaid_txn_id BIGINT DEFAULT NULL COMMENT ''预付租金退回流水ID'' AFTER refund_txn_id',
+    'SELECT 1') FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rent_termination' AND COLUMN_NAME = 'prepaid_txn_id');
+PREPARE s FROM @ddl; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- 列注释与语义同步（幂等）
+ALTER TABLE rent_termination
+    MODIFY COLUMN apply_time DATETIME NOT NULL COMMENT '退租申请时间（结算冷却期从此刻起算）',
+    MODIFY COLUMN effective_end_period VARCHAR(7) NOT NULL COMMENT '退租生效期(yyyy-MM)：申请当月，视为已住满不退';
 
 -- ==================== 房租提醒去重日志表 ====================
 CREATE TABLE IF NOT EXISTS rent_reminder_log (
