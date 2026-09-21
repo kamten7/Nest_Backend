@@ -10,12 +10,15 @@
             #{appointmentTime}, #{remark}, 1, NOW(), NOW())
     </insert>
 
+    <!-- 状态条件更新（乐观锁）：WHERE 带期望状态，影响行数 = 0 说明已被并发流转，由调用方拒绝本次操作。
+         典型竞态：租客点「取消」(1→4) 与房东点「确认」(1→2) 同时读到「待确认」，
+         没有守卫时后提交者会覆盖前者，出现「已取消」被复活成「已确认」。 -->
     <update id="updateStatus">
         UPDATE appointment
         SET status = #{status},
             <if test="cancelReason != null">cancel_reason = #{cancelReason},</if>
             update_time = NOW()
-        WHERE id = #{id}
+        WHERE id = #{id} AND status = #{expectedStatus}
     </update>
 
     <select id="selectById" resultType="Appointment">

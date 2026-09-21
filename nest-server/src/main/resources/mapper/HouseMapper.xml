@@ -57,6 +57,14 @@
         SELECT * FROM house WHERE id = #{id}
     </select>
 
+    <!-- 加行锁读房源（删除前的租约校验专用）。「确认租房」的 markRentedIfAvailable 也要改这一行，
+         靠 InnoDB 行锁把两个事务排队：拿不到锁的一方必须等对方提交，提交后条件 UPDATE 自然看到新状态。
+         单靠 @Transactional 不够 —— 默认 RR 隔离级别下两个事务动的是不同行（house 与 rent_order），
+         「检查可删」与「真的删除」之间仍可插进一笔已提交的确认租房。 -->
+    <select id="selectByIdForUpdate" resultType="House">
+        SELECT * FROM house WHERE id = #{id} FOR UPDATE
+    </select>
+
     <select id="selectByLandlord" resultType="House">
         SELECT * FROM house WHERE landlord_id = #{landlordId} ORDER BY create_time DESC
     </select>

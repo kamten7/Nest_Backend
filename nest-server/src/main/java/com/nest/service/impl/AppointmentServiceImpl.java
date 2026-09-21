@@ -94,6 +94,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     /** 租客取消预约。 */
     @Override
+    @Transactional
     public void cancelByTenant(Long appointmentId, String reason) {
         Long tenantId = BaseContext.getCurrentId();
         Appointment appointment = getAndCheck(appointmentId);
@@ -106,7 +107,12 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
         }
 
-        appointmentMapper.updateStatus(appointmentId, AppointmentStatus.CANCELLED, reason);
+        // 期望状态取「刚读到的值」：并发下若已被房东流转（确认/完成），影响行数为 0 ⇒ 拒绝本次取消。
+        int rows = appointmentMapper.updateStatus(appointmentId, appointment.getStatus(),
+                AppointmentStatus.CANCELLED, reason);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
+        }
         log.info("租客取消预约: id={}, tenantId={}", appointmentId, tenantId);
 
         pushNotification("landlord", appointment.getLandlordId(),
@@ -125,6 +131,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     /** 房东确认预约（待确认→已确认）。 */
     @Override
+    @Transactional
     public void confirm(Long appointmentId) {
         Long landlordId = BaseContext.getCurrentId();
         Appointment appointment = getAndCheck(appointmentId);
@@ -133,7 +140,12 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (appointment.getStatus() != AppointmentStatus.PENDING) {
             throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
         }
-        appointmentMapper.updateStatus(appointmentId, AppointmentStatus.CONFIRMED, null);
+        // 期望状态钉死 PENDING：并发下租客可能已取消，影响行数为 0 ⇒ 拒绝，避免把「已取消」复活成「已确认」。
+        int rows = appointmentMapper.updateStatus(appointmentId, AppointmentStatus.PENDING,
+                AppointmentStatus.CONFIRMED, null);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
+        }
         log.info("房东确认预约: id={}, landlordId={}", appointmentId, landlordId);
 
         pushNotification("tenant", appointment.getTenantId(),
@@ -142,6 +154,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     /** 房东标记看房完成（已确认→已看房）。 */
     @Override
+    @Transactional
     public void complete(Long appointmentId) {
         Long landlordId = BaseContext.getCurrentId();
         Appointment appointment = getAndCheck(appointmentId);
@@ -150,12 +163,18 @@ public class AppointmentServiceImpl implements AppointmentService {
         if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
             throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
         }
-        appointmentMapper.updateStatus(appointmentId, AppointmentStatus.VISITED, null);
+        // 期望状态钉死 CONFIRMED：并发下租客可能已取消，影响行数为 0 ⇒ 拒绝。
+        int rows = appointmentMapper.updateStatus(appointmentId, AppointmentStatus.CONFIRMED,
+                AppointmentStatus.VISITED, null);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
+        }
         log.info("房东完成看房: id={}, landlordId={}", appointmentId, landlordId);
     }
 
     /** 房东取消预约（待确认/已确认→已取消）。 */
     @Override
+    @Transactional
     public void cancelByLandlord(Long appointmentId, String reason) {
         Long landlordId = BaseContext.getCurrentId();
         Appointment appointment = getAndCheck(appointmentId);
@@ -165,7 +184,12 @@ public class AppointmentServiceImpl implements AppointmentService {
                 && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
             throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
         }
-        appointmentMapper.updateStatus(appointmentId, AppointmentStatus.CANCELLED, reason);
+        // 期望状态取「刚读到的值」：并发下可能已被租客取消或已看房，影响行数为 0 ⇒ 拒绝。
+        int rows = appointmentMapper.updateStatus(appointmentId, appointment.getStatus(),
+                AppointmentStatus.CANCELLED, reason);
+        if (rows == 0) {
+            throw new BusinessException(MessageConstant.APPOINTMENT_STATUS_INVALID);
+        }
         log.info("房东取消预约: id={}, landlordId={}", appointmentId, landlordId);
 
         pushNotification("tenant", appointment.getTenantId(),

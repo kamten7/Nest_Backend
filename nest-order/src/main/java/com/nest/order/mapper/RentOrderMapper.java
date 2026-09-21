@@ -76,6 +76,7 @@ public interface RentOrderMapper {
      * 房东「锁定金额」总额 —— 在租订单的押金 + 未消耗的预付租金。
      */
     BigDecimal sumLockedAmount(@Param("landlordId") Long landlordId,
+                               @Param("today") LocalDate today,
                                @Param("statuses") int[] statuses,
                                @Param("terminatingStatus") int terminatingStatus);
 }

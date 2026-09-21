@@ -575,8 +575,10 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (landlordId == null) {
             return ZERO;
         }
-        BigDecimal locked = rentOrderMapper.sumLockedAmount(landlordId, RentOrderStatus.DEPOSIT_LOCKED_STATUS,
-                RentOrderStatus.TERMINATING);
+        // 基准日由 Java 给出，与 terminate 的 effectiveEnd 用的是同一个时钟；SQL 里绝不能出现 CURDATE()
+        // —— DB 会话时区(+08:00)与 JVM 时区不一致时，月界附近两侧会差一个月，锁定额被低估。
+        BigDecimal locked = rentOrderMapper.sumLockedAmount(landlordId, LocalDate.now(),
+                RentOrderStatus.DEPOSIT_LOCKED_STATUS, RentOrderStatus.TERMINATING);
         return locked == null ? ZERO : locked;
     }
 

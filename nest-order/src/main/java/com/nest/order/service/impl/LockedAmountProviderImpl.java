@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 锁定金额提供方实现：在租订单的押金 + 未消耗的预付租金。
@@ -28,8 +29,9 @@ public class LockedAmountProviderImpl implements LockedAmountProvider {
         if (!JwtConstant.TYPE_LANDLORD.equals(userType) || userId == null) {
             return ZERO;
         }
-        BigDecimal locked = rentOrderMapper.sumLockedAmount(userId, RentOrderStatus.DEPOSIT_LOCKED_STATUS,
-                RentOrderStatus.TERMINATING);
+        // 基准日由 Java 给出，与 terminate 冻结金额时用的是同一个时钟（SQL 里不得使用 CURDATE()）
+        BigDecimal locked = rentOrderMapper.sumLockedAmount(userId, LocalDate.now(),
+                RentOrderStatus.DEPOSIT_LOCKED_STATUS, RentOrderStatus.TERMINATING);
         if (locked == null) {
             return ZERO;
         }

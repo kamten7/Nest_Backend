@@ -1,106 +1,158 @@
-# ============================================================
-# Nest 租房平台 · 开发环境配置模板
-# ------------------------------------------------------------
-# 使用三步：
-#   1. 复制成正式文件（就在本目录下）：
+# ============================================================================
+# Nest 租房平台 · 后端开发环境配置模板
+# ----------------------------------------------------------------------------
+# 【这个文件干什么用的】
+#   Spring Boot 的「dev 档」配置。Spring Boot 会先读 application.yml（公共项），
+#   再用本文件按 profile=dev 覆盖。凡是跟「本机环境」绑定的东西——数据库地址、密码、
+#   第三方密钥、本地联调开关——都放这里，从而可以安全地 gitignore 掉、不进仓库。
+#
+# 【三步使用】
+#   1) 复制成本目录下的正式文件：
 #        cp application-dev-example.yml application-dev.yml
-#   2. 打开 application-dev.yml，把 <尖括号占位符> 换成你自己的值
-#   3. 删掉本模板，即完成配置：
+#   2) 打开 application-dev.yml，把 <尖括号占位符> 换成你自己的值
+#      （🔴 标记的是必须填的，其它不填只会导致对应功能不可用，不影响启动）
+#   3) 删掉本模板，即完成配置：
 #        rm application-dev-example.yml
 #
 # ⚠️ application-dev.yml 已被 .gitignore 忽略、不会进仓库，
-#    所以数据库密码、API Key 这类敏感信息直接写进去即可，不需要再建 .env 文件。
+#    所以数据库密码、API Key 这类敏感信息直接写进去即可。
+#    本项目不走 .env 方案——所有可变项都集中在 application-dev.yml 这一个文件里。
 #
-# ⚠️ 端口按你的中间件来源二选一（本模板默认按 Docker 那套填好了）：
-#    · 用 docker-compose 起中间件（见 docker-compose-example.yml）
-#        → MySQL 3309 / Redis 6381 / MinIO 9012
-#    · 用本机自己装的中间件
-#        → MySQL 3306 / Redis 6379 / MinIO 9000
-# ============================================================
+# 【哪些必须填？】
+#   🔴 必填：nest.jwt.admin-secret-key / nest.jwt.user-secret-key（不填启动即失败）
+#   🔴 必填：nest.datasource.password（连不上库）
+#   🟡 按需：nest.wechat.*（不填就走 mock 登录）、nest.ai.*（不填则 AI 找房不可用）
+#   🟢 默认即可：minio / websocket / cron 等，本地联调无需改动
+#
+# 【端口按你的中间件来源二选一】本模板默认按下面「Docker 那套」填好
+#     · 用 docker-compose 起中间件（见 docker-compose-example.yml）
+#         → MySQL 3309 / Redis 6381 / MinIO 9012
+#     · 用本机自己装的中间件
+#         → MySQL 3306 / Redis 6379 / MinIO 9000
+# ============================================================================
 
 nest:
-  # JWT 双通道密钥：租客端、房东端各一把，服务端用两把独立密钥签发与校验，必须不同
-  # 建议填 32 位以上的随机字符串
-  jwt:
-    admin-secret-key: "<房东端JWT密钥>"
-    user-secret-key: "<租客端JWT密钥>"
 
-  # ===== MySQL =====
+  # ===== JWT 双通道密钥（🔴 必填） =====
+  # 本项目租客端、房东端各用一把独立密钥签发与校验 token，互不通用。
+  # 这样即使租客端 token 泄露，也无法伪造成房东身份。
+  # 要求：两把必须不同；建议各填 32 位以上的随机字符串。
+  # 缺任意一把会导致启动失败，因为 JwtUtil 初始化时就会对密钥做 SHA-256。
+  jwt:
+    admin-secret-key: "<房东端JWT密钥，32位以上随机串>"
+    user-secret-key: "<租客端JWT密钥，32位以上随机串>"
+
+  # ===== MySQL（🔴 密码必填） =====
+  # 这里填的值会拼进 JDBC URL（见 application.yml 的 druid.url），
+  # 连接串已带 connectionTimeZone=+08:00&forceConnectionTimeZoneToSession=true，
+  # 目的是让「数据库生成的时间」与「Java 生成的时间」都统一到东八区，避免跨时区错位。
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    host: localhost
-    port: 3309                          # 本机自装 MySQL 通常为 3306
-    database: nest_rent
+    driver-class-name: com.mysql.cj.jdbc.Driver   # MySQL 8 固定用这个驱动类
+    host: localhost                                # 本机容器/本机 MySQL 都是 localhost
+    port: 3309                                     # 🔴 与 docker-compose.yml 里的端口映射左侧保持一致（本机自装 MySQL 通常填 3306）
+    database: nest_rent                            # 库名，与 docker-compose 的 MYSQL_DATABASE 一致
     username: root
-    # 🔴 必改：用 Docker 部署时必须与 docker-compose.yml 里的 MYSQL_ROOT_PASSWORD 完全一致
+    # 🔴 必须与 docker-compose.yml 的 MYSQL_ROOT_PASSWORD 完全一致，否则报 Access denied
     password: "<你的MySQL-root密码>"
 
   # ===== MinIO 对象存储（房源图片 / 用户头像，双 bucket） =====
+  # 至少需要 bucket（房源图）与 avatar-bucket（头像）两个桶；
+  # docker-compose 的 minio-init 会自动建好它们并设为匿名可读，前端 <img> 才能直接渲染。
   minio:
     endpoint: http://localhost:9012     # 本机自装 MinIO 通常为 http://localhost:9000
-    access-key: "minioadmin"
-    secret-key: "minioadmin"
-    bucket: nest-rent
-    avatar-bucket: nest-avatar          # 用户头像专用 bucket，不存在会自动创建
+    access-key: "minioadmin"            # 与 docker-compose.yml 的 MINIO_ROOT_USER 一致
+    secret-key: "minioadmin"            # 与 docker-compose.yml 的 MINIO_ROOT_PASSWORD 一致
+    bucket: nest-rent                   # 房源图片桶，不存在时会自动创建
+    avatar-bucket: nest-avatar          # 用户头像专用桶（与通用桶分离存放）
 
-  # ===== 微信小程序登录 =====
-  # mock-enabled=true：完全不调用微信，openid 固定取 mock-openid，本地反复登录=同一个租客，最省事
-  # 想走真实登录：mock-enabled 改 false，且 appid/secret 必须与小程序 AppID 完全一致
-  #              （不一致时 jscode2session 会返回 40013 / 40029）
+  # ===== 微信小程序登录（🟡 不填就走 mock） =====
+  # 租客端是微信小程序，登录靠 wx.login 拿到的 code 换 openid。
+  # 两种用法：
+  #   · 想最快跑通：保持 mock-enabled: true —— 完全不调用微信，openid 固定取 mock-openid，
+  #                 本地反复登录永远是同一个租客，数据好复现，最适合联调。
+  #   · 想走真实登录：mock-enabled 改 false，且 appid/secret 必须与小程序后台完全一致，
+  #                 否则 jscode2session 返回 40013 / 40029 之类错误。
   wechat:
-    appid: "<小程序AppID，形如 wx1234567890abcdef>"
+    appid: "<小程序AppID，形如 wx8a7b6c5d4e3f2a10>"
     secret: "<小程序AppSecret>"
-    mock-enabled: true
-    mock-openid: nest_dev_tenant
+    mock-enabled: true                  # true=不调微信走假登录（仅本地）；false=真实登录
+    mock-openid: nest_dev_tenant        # 仅 mock 生效：固定的假 openid，保证反复登录是同一租客
 
-  # ⚠️ 仅本地联调用：手机号直接登录/注册（不校验验证码）。生产必须 false
+  # ===== 🔴 安全开关：手机号直登（仅本地联调，生产必须关） =====
+  # true = 允许用手机号直接登录/注册，不校验短信验证码。
+  # 这是为了本地没接短信服务也能测登录，**绝不能在任何公网环境开启**，否则等于谁都能冒充任意用户。
   auth:
-    phone-login-enabled: true
+    phone-login-enabled: true           # 生产必须 false
 
-  # ⚠️ 仅本地联调用：模拟充值（无幂等、不接支付）。生产必须 false
+  # ===== 🔴 安全开关：模拟充值（仅本地联调，生产必须关） =====
+  # true = 提供「模拟充值」接口，不走真实支付即可给钱包加钱。
+  # 同样**绝不能在生产开启**，否则用户可无限白嫖余额。
   wallet:
-    simulate-recharge-enabled: true
+    simulate-recharge-enabled: true     # 生产必须 false
 
-  # ===== AI（LangChain4j 真实 Function Calling，找房 Agent） =====
-  # 不填 Key 时只有 AI 找房不可用，其它接口不受影响；两家都指向硅基流动即可
+  # ===== AI 找房（LangChain4j 真实 Function Calling）（🟡 不填则仅该功能不可用） =====
+  # 房东端、租客端各配一份。不填 Key 时只有 AI 找房不可用，其它接口完全不受影响。
+  # 两家都指向同一个服务商（硅基流动）即可，模型用 DeepSeek-V3。
+  # ⚠️ api-key 是可计费凭据：不要提交到仓库；一旦怀疑泄露，立即去服务商后台吊销重发。
   ai:
     admin:
       base-url: https://api.siliconflow.cn/v1
-      api-key: "<硅基流动API Key（房东端）>"
+      api-key: "<硅基流动API Key（房东端）>"      # 形如 sk-xxxx
       model-name: deepseek-ai/DeepSeek-V3
-      temperature: 0.1
+      temperature: 0.1                # 房东端偏确定性（建/改房源的参数抽取），温度调低
     user:
       base-url: https://api.siliconflow.cn/v1
       api-key: "<硅基流动API Key（租客端）>"
       model-name: deepseek-ai/DeepSeek-V3
-      temperature: 0.7
+      temperature: 0.7                # 租客端是闲聊式找房，温度可略高，回答更自然
+  # 说明：admin / user 可以用同一个 Key，也可以各申请一个便于分别计费与限流。
 
-  # ===== 聊天长连接 =====
+  # ===== 聊天长连接（WebSocket） =====
+  # 本项目实现了两套 WebSocket，用 implementation 切换：
+  #   jsr356 —— 基于 Servlet 容器（随 HTTP 8080 一起跑）
+  #   netty  —— 独立 Netty 服务，监听下面 netty.port
+  # netty.port 必须与 HTTP 端口（8080）不同，且别占用系统已用端口。
   websocket:
     implementation: netty               # jsr356 | netty
     netty:
-      port: 8081                        # 与 HTTP 8080 不同端口，别占用
+      port: 8081
 
+  # ===== 电子合同模板路径 =====
+  # 合同用模板文件渲染。classpath: 指打包进 jar 的资源目录，一般不用改。
   contract:
     template-path: classpath:contract-templates/
 
-  # ===== 定时任务 cron（6 段：秒 分 时 日 月 周） =====
+  # ===== 定时任务 cron（6 段式：秒 分 时 日 月 周） =====
+  # Spring 的 @Scheduled 用 6 段 cron，比 Linux 的 5 段多最前面一个「秒」。
+  # 下面几个都是「每天定点跑一次」，本地联调按需调整时间即可。
   inspection:
-    reminder-cron: 0 0 9 * * ?
+    reminder-cron: 0 0 9 * * ?          # 每天 09:00 巡检提醒
   rent:
-    reminder-cron: 0 0 10 * * ?         # 缴租提醒
-    refund-cron: 0 0 11 * * ?           # 超期未结算，自动退还押金
-    deposit-timeout-cron: 0 * * * * ?   # 待缴押金超时扫描（每 30 分钟未缴则取消订单 + 房源重新上架）
+    reminder-cron: 0 0 10 * * ?         # 每天 10:00 扫「快到缴租日」的订单并提醒租客
+    refund-cron: 0 0 11 * * ?           # 每天 11:00 扫「超期未结算」的退租，自动退还押金
+    deposit-timeout-cron: 0 * * * * ?   # 每分钟扫一次「待缴押金超时」的订单（超时则取消订单 + 房源重新上架）
 
+# ===== Redis 缓存 / 验证码 / 登录态 =====
 spring:
   data:
     redis:
       host: 127.0.0.1
       port: 6381                        # 本机自装 Redis 通常为 6379
-      password: "123456"                # 与 docker-compose.yml 里 --requirepass 保持一致
-      timeout: 1000
+      password: "<你的Redis密码>"        # 与 docker-compose.yml 里 --requirepass 保持一致，否则连不上
+      timeout: 1000                     # 连接/读取超时（毫秒）
       lettuce:
         pool:
-          min-idle: 1
-          max-active: 8
-          max-wait: 3000
+          min-idle: 1                   # 连接池最小空闲连接
+          max-active: 8                 # 最大连接数
+          max-wait: 3000                # 拿不到连接时的最大等待（毫秒），超时抛异常而不是无限等
+
+# ============================================================================
+# 小结：本地从零跑起来，最少只要三步
+#   1. cp docker-compose-example.yml docker-compose.yml && 填 MySQL 密码 && docker compose up -d
+#   2. cp application-dev-example.yml application-dev.yml
+#      && 把 nest.datasource.password 填成上面同一个密码 && 两把 JWT 密钥随便填两个不同的随机串
+#   3. 启动后端（默认 spring.profiles.active=dev），本地登录用手机号直登 + 模拟充值即可
+#
+# ⚠️ 注意：本模板里的 auth.phone-login-enabled 与 wallet.simulate-recharge-enabled 默认是 true，
+#    这是为了方便本地联调。任何要放到公网的环境，务必确保这两个开关为 false。
+# ============================================================================

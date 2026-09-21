@@ -154,21 +154,21 @@ backend/
 **🏠 首页** · **📋 房源详情** · **💬 聊天**
 
 <p align="center">
-  <img src="docs/image/app-01-home.png" alt="用户端 · 首页" width="30%">
+  <img src="docs/image/user/用户端首页.png" alt="用户端 · 首页" width="30%">
   &nbsp;
-  <img src="docs/image/app-02-house-detail.png" alt="用户端 · 房源详情" width="30%">
+  <img src="docs/image/user/用户端房源信息详情.png" alt="用户端 · 房源详情" width="30%">
   &nbsp;
-  <img src="docs/image/app-03-chat.png" alt="用户端 · 聊天" width="30%">
+  <img src="docs/image/user/用户端聊天.png" alt="用户端 · 聊天" width="30%">
 </p>
 
 **⭐ 评论** · **👤 个人首页** · **🤖 AI 聊天**
 
 <p align="center">
-  <img src="docs/image/app-04-review.png" alt="用户端 · 评论" width="30%">
+  <img src="docs/image/user/用户端评论.png" alt="用户端 · 评论" width="30%">
   &nbsp;
-  <img src="docs/image/app-05-profile.png" alt="用户端 · 个人首页" width="30%">
+  <img src="docs/image/user/用户端个人页面.png" alt="用户端 · 个人首页" width="30%">
   &nbsp;
-  <img src="docs/image/app-06-ai.png" alt="用户端 · AI 聊天" width="30%">
+  <img src="docs/image/user/用户端Ai聊天.png" alt="用户端 · AI 聊天" width="30%">
 </p>
 
 

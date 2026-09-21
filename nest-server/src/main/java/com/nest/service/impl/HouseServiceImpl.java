@@ -116,19 +116,13 @@ public class HouseServiceImpl implements HouseService {
 
     /**
      * 删除房源（房东端）。先删子表再删主表，同一事务内。
-     *
-     * <p><b>在租中的房源不允许删除</b>：只要房源处于「在租中」，或名下还有未终结的订单
-     * （待缴押金 1 / 租房中 2 / 退租申请中 3），一律拒绝。否则 {@code rent_order} 会指向一个
-     * 不存在的 house —— 订单详情/列表的标题与封面变 null，而押金锁定金额仍按订单状态 2/3
-     * 计算，出现「钱还锁着、房子却没了」的脱节状态，且租客侧无法自行恢复。
-     * 房东想删房必须先走完退租（或让租客放弃租房）。
      */
     @Override
     @Transactional
     public void delete(Long houseId) {
         validateOwnership(houseId);
 
-        House cur = houseMapper.selectById(houseId);
+        House cur = houseMapper.selectByIdForUpdate(houseId);
         boolean renting = cur != null && cur.getStatus() != null
                 && cur.getStatus() == HouseStatus.RENTED;
         int activeOrders = rentOrderMapper.countActiveByHouse(houseId);

@@ -109,7 +109,10 @@
         ORDER BY id
     </select>
 
-    <!-- 房东「锁定金额」总额 = 在租订单的押金 + 未消耗的预付租金-->
+    <!-- 房东「锁定金额」总额 = 在租订单的押金 + 未消耗的预付租金。
+         ⚠️ 基准日必须由 Java 传入（#{today}），绝不能用 CURDATE()：SQL 走 DB 会话时区(+08:00)、
+         Java 走 JVM 时区，两者在月界附近会错开一个月 —— 锁定额被低估后房东能把未消耗预付租金提走，
+         退租结算时 doRefund 余额不足 ⇒ 订单永久卡在退租申请中。与 terminate 共用同一个 LocalDate.now()。 -->
     <select id="sumLockedAmount" resultType="java.math.BigDecimal">
         SELECT COALESCE(SUM(
                  COALESCE(o.deposit, 0)
@@ -120,7 +123,7 @@
                                      WHERE t.order_id = o.id
                                      ORDER BY t.id DESC LIMIT 1), 0)
                    ELSE COALESCE(o.monthly_rent, 0) * COALESCE(GREATEST(0,
-                          TIMESTAMPDIFF(MONTH, DATE_FORMAT(CURDATE(), '%Y-%m-01'),
+                          TIMESTAMPDIFF(MONTH, DATE_FORMAT(#{today}, '%Y-%m-01'),
                             STR_TO_DATE(CONCAT(o.next_due_period, '-01'), '%Y-%m-%d')) - 1), 0)
                  END
                ), 0)

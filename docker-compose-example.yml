@@ -1,46 +1,78 @@
-# ============================================================
-# Nest 后端 · Docker 中间件部署模板
-# ------------------------------------------------------------
-# 用途：一键启动 MySQL / Redis / MinIO 三个中间件容器，并在首次启动时
-#       自动执行 sql/nest_rent.sql，建好 19 张表 + 灌入房东种子数据。
+# ============================================================================
+# Nest 租房平台 · 中间件部署模板（Docker Compose）
+# ----------------------------------------------------------------------------
+# 【这个文件干什么用的】
+#   一条命令在本机拉起后端所需的三个中间件容器：
+#     · MySQL 8.0  —— 业务数据库（首次启动会自动建库建表 + 灌入房东种子数据）
+#     · Redis 7    —— 缓存 / 验证码 / 登录态
+#     · MinIO      —— S3 兼容对象存储，存房源图片与用户头像
+#   三个容器同处一个自定义网络 nest_net，容器内互相用服务名访问（mysql / redis / minio）。
 #
-# 使用三步：
-#   1. 复制成正式文件：
+# 【三步使用】
+#   1) 复制成本项目的正式文件：
 #        cp docker-compose-example.yml docker-compose.yml
-#   2. 打开 docker-compose.yml，把 <尖括号占位符> 换成你自己的值
-#      （真正必须改的只有 MySQL root 密码，Redis / MinIO 用默认值即可跑通）
-#   3. 删掉本模板，然后启动：
+#   2) 打开 docker-compose.yml，把 <尖括号占位符> 换成你自己的值
+#      （只有 MySQL root 密码是必须改的；Redis / MinIO 用默认值即可直接跑通）
+#   3) 删掉本模板，然后启动：
 #        rm docker-compose-example.yml
 #        docker compose up -d
 #
-# ⚠️ 改完密码记得同步到后端配置 application-dev.yml 的 nest.datasource.password，
-#    两处必须一致，否则后端连不上库。
+# 【启动后必做的一步】
+#   把你在第 2 步填的 MySQL 密码，同步写进后端配置：
+#     nest-server/src/main/resources/application-dev.yml → nest.datasource.password
+#   两处密码必须完全一致，否则后端连不上库（报 Access denied）。
+#   不知道 application-dev.yml 怎么来的？看它的模板 application-dev-example.yml。
 #
-# ⚠️ 如果你不用 Docker、而是用本机已装好的 MySQL / Redis / MinIO，
-#    则完全不需要本文件，直接改后端配置模板即可：
-#        nest-server/src/main/resources/application-dev-example.yml
-# ============================================================
+# 【不用 Docker 行不行】
+#   行。只要你本机已装好 MySQL / Redis / MinIO，直接跳过本文件，
+#   改后端配置模板即可：nest-server/src/main/resources/application-dev-example.yml
+#   此时注意端口：本机自装通常是 MySQL 3306 / Redis 6379 / MinIO 9000。
+#
+# 【端口对照表】三者左边是宿主机端口（你用客户端连它），右边是容器内端口（不要改）
+#     MySQL  3309 → 3306
+#     Redis  6381 → 6379
+#     MinIO  9012 → 9000（S3 API）、9013 → 9001（Web 控制台）
+# ============================================================================
 
-name: nest          # 项目名，决定容器与数据卷的前缀；一般不用改
+# 项目名。它决定容器名前缀与数据卷前缀，一般不用改。
+# 固定写成 nest 的好处：无论在哪个目录执行 compose，数据卷名都一样，不会起出重复的一套。
+name: nest
 
 services:
-  # ==================== MySQL 8.0 ====================
+  # ==========================================================================
+  # MySQL 8.0
+  # ==========================================================================
   mysql:
+    # 版本锁定在 8.0。不要用 latest：MySQL 8.4 改了默认认证插件与若干行为，
+    # 本项目 sql/nest_rent.sql 与 JDBC 连接串都按 8.0 调校。
     image: mysql:8.0
+    # 容器名。后端脚本、文档里的 docker exec 命令都用这个名字，改了要全项目一起改。
     container_name: nest_mysql
+    # 宿主机端口 : 容器端口。容器内永远是 3306（MySQL 默认），不要改右边。
+    # 左边故意用 3309：避开你本机可能已经装着的 MySQL（它占着 3306），两者可共存。
     ports:
-      - "3309:3306"                     # 宿主机端口 : 容器端口；3309 可改成 3306 等空闲端口
+      - "3309:3306"
     environment:
-      # 🔴 唯一必改项：换成你自己的 MySQL root 密码
+      # 🔴 唯一必改项。填你自己的 MySQL root 密码。
+      #    本地开发随便设一个简单的就行；但绝不要把这个弱口令带到任何公网环境。
+      #    ⚠️ 注意：这个变量只在「数据卷为空、容器首次初始化」时生效，详见文件末尾「重要坑」。
       MYSQL_ROOT_PASSWORD: "<你的MySQL-root密码>"
+      # 首次启动自动创建的业务库名。后端 application-dev.yml 的 database 要与它一致。
       MYSQL_DATABASE: nest_rent
     volumes:
+      # 数据持久化卷。你的所有数据都存在这里。
+      # ⚠️ 执行 `docker compose down -v` 会连它一起删掉 = 数据库全部清空、回到初始种子状态。
       - nest-mysql-data:/var/lib/mysql
-      # 首次初始化（数据卷为空）时自动执行：建库建表 + 灌房东种子
-      # 路径相对本文件所在目录，即 backend/sql/nest_rent.sql
+      # 初始化脚本挂载：仅在「数据卷为空、容器首次初始化」时自动执行一次，
+      # 用来建 19 张表 + 灌入住房/房东种子数据。
+      # 路径是相对本文件所在目录写的，即 backend/sql/nest_rent.sql。
+      # `:ro` = 只读挂载，容器不会改到源文件。
       - ./sql/nest_rent.sql:/docker-entrypoint-initdb.d/01-nest_rent.sql:ro
-    # 字符集/排序规则与 sql/nest_rent.sql 保持一致（MySQL 8 默认 utf8mb4）
+    # 服务端字符集与排序规则，必须与 sql/nest_rent.sql 内保持一致（utf8mb4 / utf8mb4_0900_ai_ci），
+    # 否则中文与 emoji 会出现乱码或建表时排序规则冲突。
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    # 健康检查：每 10 秒 ping 一次，连续失败 10 次（约 100 秒）才判定不健康。
+    # 后端 / minio-init 等依赖方以此为准等待，避免中间件没起来就抢跑。
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -49,35 +81,44 @@ services:
     networks:
       - nest-net
 
-  # ==================== Redis 7 ====================
+  # ==========================================================================
+  # Redis 7
+  # ==========================================================================
   redis:
     image: redis:7-alpine
     container_name: nest_redis
+    # 宿主机 6381 : 容器 6379。同样是为了避开本机可能已占用的 6379。
     ports:
-      - "6381:6379"                     # 宿主机 6381（避开本机可能已占用的 6379）
-    # 默认密码 123456；改了要同步到 application-dev.yml 的 spring.data.redis.password
-    command: redis-server --requirepass 123456 --port 6379
+      - "6381:6379"
+    # 启动即要求密码认证。把 <你的Redis密码> 换成你自己的值，
+    # 并同步到 application-dev.yml 的 spring.data.redis.password。
+    command: redis-server --requirepass <你的Redis密码> --port 6379
     volumes:
       - nest-redis-data:/data
+    # 健康检查里的口令也要与上面 --requirepass 保持一致，否则容器永远不健康。
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      test: ["CMD", "redis-cli", "-a", "<你的Redis密码>", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - nest-net
 
-  # ==================== MinIO（S3 兼容对象存储） ====================
+  # ==========================================================================
+  # MinIO（S3 兼容对象存储）
+  # ==========================================================================
   minio:
     image: minio/minio:latest
     container_name: nest_minio
     ports:
-      - "9012:9000"                     # S3 API
-      - "9013:9001"                     # Web 控制台
+      - "9012:9000"   # S3 API：后端 SDK、前端 <img> 直连都用这个
+      - "9013:9001"   # Web 控制台：浏览器登录管理文件
     environment:
-      # 默认账号口令均为 minioadmin；改了要同步到 application-dev.yml 的 nest.minio.*
+      # 下面是 MinIO 官方出厂默认账号口令，本地开发直接用即可。
+      # 若要改，需同时改三处：这里、minio-init 服务、以及 application-dev.yml 的 nest.minio.*
       MINIO_ROOT_USER: "minioadmin"
       MINIO_ROOT_PASSWORD: "minioadmin"
+    # 指定 API 端口 9000、控制台端口 9001（新版镜像必须显式给 console-address）。
     command: server /data --console-address ":9001"
     volumes:
       - nest-minio-data:/data
@@ -89,14 +130,20 @@ services:
     networks:
       - nest-net
 
-  # ==================== MinIO 初始化：自动创建 bucket ====================
+  # ==========================================================================
+  # MinIO 初始化（一次性任务容器）
+  # --------------------------------------------------------------------------
+  # 作用：等 minio 健康后，用它自带的 mc 客户端建好两个 bucket，并设为「匿名可读」。
+  # 为什么要匿名可读：前端用 <img src="..."> 直接引用对象地址渲染房源图/头像，
+  #   不加公开读权限的话图片会 403 加载不出来。
+  # 这个容器跑完自己的脚本就退出（exit 0），属于正常现象，不用管它的状态。
+  # ==========================================================================
   minio-init:
     image: minio/mc:latest
     container_name: nest_minio_init
     depends_on:
       minio:
-        condition: service_healthy
-    # 建两个 bucket 并设为匿名可读（前端 <img> 直接引用对象地址，权限必须是 public）
+        condition: service_healthy   # 严格等 minio 健康再执行，避免抢跑建桶失败
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 minioadmin minioadmin;
@@ -104,17 +151,46 @@ services:
       mc mb --ignore-existing local/nest-avatar;
       mc anonymous set download local/nest-rent;
       mc anonymous set download local/nest-avatar;
-      echo '>>> MinIO bucket nest-rent / nest-avatar 创建完成（均为匿名可读，前端 img 可直连）';
+      echo '>>> MinIO bucket nest-rent / nest-avatar 创建完成（均为匿名可读）';
       exit 0;
       "
     networks:
       - nest-net
 
+# ============================================================================
+# 自定义网络：三个容器都接进来，容器之间用「服务名」当主机名互相访问
+# （例如 minio-init 里写 http://minio:9000，而不是 localhost）
+# ============================================================================
 networks:
   nest-net:
     name: nest_net
 
+# ============================================================================
+# 具名数据卷：数据落在 Docker 管理的卷里，删容器不丢数据，删卷才丢
+# ============================================================================
 volumes:
   nest-mysql-data:
   nest-redis-data:
   nest-minio-data:
+
+# ============================================================================
+# ⚠️ 重要坑：改了 MySQL 密码，为什么还是连不上 / 还是旧密码？
+# ----------------------------------------------------------------------------
+# MySQL 官方镜像只在「数据卷为空、容器首次初始化」时读取 MYSQL_ROOT_PASSWORD 去创建账号。
+# 你的容器一旦初始化过（nest-mysql-data 卷里已有数据），之后你再改这里的密码，
+# Docker 只是「重建容器」，初始化脚本不会重跑 → 数据库里的真实密码纹丝不动。
+# 结果：后端按新密码去连，库还认旧密码 → Access denied。
+#
+# 正确做法二选一：
+#   【方案 A · 保留数据】登录进容器，直接改库里的账号密码（推荐，无损）
+#     docker exec -e MYSQL_PWD='旧密码' nest_mysql mysql -uroot -e \
+#       "ALTER USER 'root'@'%' IDENTIFIED BY '新密码'; \
+#        ALTER USER 'root'@'localhost' IDENTIFIED BY '新密码'; FLUSH PRIVILEGES;"
+#     （root@% 和 root@localhost 是两个独立账号，都要改）
+#   【方案 B · 清库重来】改好本文件的密码后，连数据卷一起删掉重建
+#     docker compose down -v && docker compose up -d
+#     ⚠️ 会清空所有数据，重新执行 nest_rent.sql 种子。
+#
+# 顺带一提：本机 JDBC 连接串里带了 allowPublicKeyRetrieval=true，
+# MySQL 8 默认的 caching_sha2_password 认证插件无需额外配置 SSL 即可直连。
+# ============================================================================

@@ -12,7 +12,14 @@ public interface AppointmentMapper {
 
     int insert(Appointment appointment);
 
+    /**
+     * 条件更新预约状态（乐观锁）：仅当当前状态仍是 {@code expectedStatus} 时才改，
+     * 影响行数为 0 表示已被并发修改，调用方据此拒绝本次流转。
+     *
+     * <p>没有这道守卫时，「租客取消」与「房东确认」并发会双双成功，后提交者把已取消覆盖成已确认。</p>
+     */
     int updateStatus(@Param("id") Long id,
+                     @Param("expectedStatus") Integer expectedStatus,
                      @Param("status") Integer status,
                      @Param("cancelReason") String cancelReason);
 
