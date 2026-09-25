@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -133,7 +134,7 @@ public class WalletServiceImpl implements WalletService {
 
     /** 提现（预留）：幂等受理 + 行锁下条件扣款，写一条 WITHDRAW 状态=处理中 的支出流水。 */
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public WalletVO withdraw(String userType, Long userId, BigDecimal amount, String idempotencyKey) {
         checkAmount(amount);
         /* 锁定金额由订单模块经 SPI 提供；缺了它就等于"押金不设防"，资金操作宁可拒绝也不能放行 */
@@ -149,13 +150,6 @@ public class WalletServiceImpl implements WalletService {
             log.warn("提现重复提交（快路径命中）: userType={}, userId={}, idemKey={}", userType, userId, idemKey);
             throw new BusinessException(MessageConstant.WALLET_IDEM_DUPLICATE);
         }
-
-        /* 先对钱包行加排他锁，再重读「锁定金额」，最后才条件扣款。
-           锁定金额（在租押金）不是 wallet 表里的列，而是由 rent_order 状态推导出来的：
-           租客缴押金时，同一个事务会先给房东钱包加余额（必须抢到本行锁）再把订单推进到
-           「押金锁定」状态。因此只要本节持有本行锁，该事务就无法在本节读值前后插入中间态，
-           读到的 locked / balance 必属同一时点，从而杜绝 TOCTOU（旧写法先读 locked
-           再据此二选一拼 SQL，读与扣之间存在窗口 ⇒ 房东可把刚到账的押金提走）。 */
         wallet = walletMapper.lockById(wallet.getId());
         checkUsable(wallet);
 
