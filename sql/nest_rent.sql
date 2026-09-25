@@ -230,10 +230,12 @@ CREATE TABLE IF NOT EXISTS message (
     sender_id BIGINT NOT NULL COMMENT '发送者ID',
     content TEXT NOT NULL COMMENT '消息内容',
     msg_type VARCHAR(20) DEFAULT 'text' COMMENT '消息类型 text/image',
+    client_msg_id VARCHAR(64) DEFAULT NULL COMMENT '客户端幂等键：断线重发去重（NULL 不受唯一约束）',
     is_read TINYINT DEFAULT 0 COMMENT '是否已读 1是 0否',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     KEY idx_conversation (conversation_id),
-    KEY idx_sender (sender_type, sender_id)
+    KEY idx_sender (sender_type, sender_id),
+    UNIQUE KEY uk_client_msg (sender_type, sender_id, client_msg_id) COMMENT '幂等兜底：同一发送者同一 clientMsgId 只落一条'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='聊天消息表';
 
 -- ==================== 用户钱包表（租客/房东共用） ====================
@@ -374,6 +376,21 @@ CREATE TABLE IF NOT EXISTS rent_reminder_log (
 INSERT IGNORE INTO landlord (id, name, phone, password, status) VALUES
     (1, '张房东', '13800000001', 'e10adc3949ba59abbe56e057f20f883e', 1),
     (2, '李房东', '13800000002', 'e10adc3949ba59abbe56e057f20f883e', 1);
+
+-- ============================================================
+-- 增量迁移：message 补「客户端幂等键」列与唯一索引（旧库执行本文件时补，新库由 CREATE TABLE 直接带出）。
+-- ============================================================
+SET @ddl := (SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE message ADD COLUMN client_msg_id VARCHAR(64) DEFAULT NULL COMMENT ''客户端幂等键：断线重发去重（NULL 不受唯一约束）'' AFTER msg_type',
+    'SELECT 1') FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'message' AND COLUMN_NAME = 'client_msg_id');
+PREPARE s FROM @ddl; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @ddl := (SELECT IF(COUNT(*) = 0,
+    'ALTER TABLE message ADD UNIQUE KEY uk_client_msg (sender_type, sender_id, client_msg_id)',
+    'SELECT 1') FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'message' AND INDEX_NAME = 'uk_client_msg');
+PREPARE s FROM @ddl; EXECUTE s; DEALLOCATE PREPARE s;
 
 -- ============================================================
 -- 可选演示数据：房东1 名下的 1 套房源，方便初始化后立刻能浏览/预约/走租房全流程。

@@ -30,4 +30,8 @@ public interface MessageMapper {
     Long selectMaxReadId(@Param("conversationId") Long conversationId,
                          @Param("viewerType") String viewerType,
                          @Param("viewerId") Long viewerId);
+
+    Message selectByClientMsgId(@Param("senderType") String senderType,
+                                @Param("senderId") Long senderId,
+                                @Param("clientMsgId") String clientMsgId);
 }

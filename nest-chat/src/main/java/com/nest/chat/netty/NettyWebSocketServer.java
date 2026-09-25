@@ -1,6 +1,7 @@
 package com.nest.chat.netty;
 
 import com.nest.chat.config.ChatProperties;
+import com.nest.chat.core.ChatAccountChecker;
 import com.nest.chat.core.MessageDispatcher;
 import com.nest.constant.JwtConstant;
 import com.nest.utils.JwtUtil;
@@ -45,6 +46,7 @@ public class NettyWebSocketServer {
 
     private final ChatProperties properties;
     private final MessageDispatcher dispatcher;
+    private final ChatAccountChecker accountChecker;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -95,7 +97,7 @@ public class NettyWebSocketServer {
                             p.addLast(new HttpServerCodec());
                             p.addLast(new HttpObjectAggregator(65536));
                             p.addLast(new IdleStateHandler(netty.getIdleTimeoutSeconds(), 0, 0));
-                            p.addLast(new NettyHandshakeAuthHandler(netty.getPath()));
+                            p.addLast(new NettyHandshakeAuthHandler(netty.getPath(), accountChecker));
                             p.addLast(new WebSocketServerProtocolHandler(
                                     WebSocketServerProtocolConfig.newBuilder()
                                             .websocketPath(netty.getPath())
@@ -117,8 +119,9 @@ public class NettyWebSocketServer {
         }
     }
 
-    /** 握手鉴权：校验 JWT 与路径 userId 是否一致，通过后写入 Channel 属性。 */
-    public static boolean authenticate(Channel channel, String userType, String userId, String token) {
+    /** 握手鉴权：校验 JWT 与路径 userId 是否一致、账号是否仍可用，通过后写入 Channel 属性。 */
+    public static boolean authenticate(Channel channel, String userType, String userId, String token,
+                                       ChatAccountChecker accountChecker) {
         String secretKey;
         if (JwtConstant.TYPE_TENANT.equals(userType)) {
             secretKey = JwtConstant.userSecretKey();
@@ -132,6 +135,10 @@ public class NettyWebSocketServer {
             Claims claims = JwtUtil.parseToken(secretKey, token);
             Long tokenUserId = claims.get("userId", Long.class);
             if (tokenUserId == null || !String.valueOf(tokenUserId).equals(userId)) {
+                return false;
+            }
+            if (!accountChecker.isActive(userType, tokenUserId)) {
+                log.warn("Netty WebSocket 握手被拒（账号不可用）: {}/{}", userType, tokenUserId);
                 return false;
             }
             channel.attr(ATTR_USER_TYPE).set(userType);

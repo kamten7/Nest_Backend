@@ -2,6 +2,7 @@ package com.nest.chat.core;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.nest.chat.push.PushService;
+import com.nest.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -57,8 +58,15 @@ public class MessageDispatcher {
             log.warn("未注册 MessageListener，聊天消息被丢弃");
             return;
         }
-        listener.onChat(fromType, fromId, toType, toId, content,
-                json.getString("msgType"), json.getString("clientMsgId"));
+        String clientMsgId = json.getString("clientMsgId");
+        try {
+            listener.onChat(fromType, fromId, toType, toId, content,
+                    json.getString("msgType"), clientMsgId);
+        } catch (Exception e) {
+            log.warn("聊天消息落库被拒: from={}:{}: {}", fromType, fromId, e.getMessage());
+            String reason = e instanceof BusinessException ? e.getMessage() : "消息发送失败，请重试";
+            pushService.pushMsgError(fromType, fromId, clientMsgId, reason);
+        }
     }
 
     private void handleReadReceipt(JSONObject json, String fromType, Long fromId) {

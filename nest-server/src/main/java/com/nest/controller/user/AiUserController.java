@@ -3,18 +3,19 @@ package com.nest.controller.user;
 import com.nest.ai.service.AiUserService;
 import com.nest.common.Result;
 import com.nest.constant.MessageConstant;
+import com.nest.dto.AiChatDTO;
 import com.nest.vo.AiMessageVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.AsyncContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 租客端 AI 找房接口 —— SSE 流式。
@@ -31,10 +32,10 @@ public class AiUserController {
     /** 流式 AI 找房对话（SSE 长连接返回）。 */
     @PostMapping(value = "/chat/stream", produces = "text/event-stream")
     @Operation(summary = "AI 流式找房", description = "租客输入自然语言，AI 通过工具查真实房源并逐字返回")
-    public void streamChat(@RequestBody(required = false) Map<String, String> body,
+    public void streamChat(@RequestBody(required = false) @Valid AiChatDTO body,
                            HttpServletRequest request,
                            HttpServletResponse response) {
-        String message = body != null ? body.get("message") : null;
+        String message = body != null ? body.getMessage() : null;
 
         AsyncContext asyncContext = request.startAsync();
         asyncContext.setTimeout(120000);

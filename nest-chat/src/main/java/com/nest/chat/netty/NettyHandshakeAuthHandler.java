@@ -13,6 +13,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.util.ReferenceCountUtil;
+import com.nest.chat.core.ChatAccountChecker;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
@@ -24,9 +25,11 @@ import java.util.Map;
 public class NettyHandshakeAuthHandler extends ChannelInboundHandlerAdapter {
 
     private final String basePath;
+    private final ChatAccountChecker accountChecker;
 
-    public NettyHandshakeAuthHandler(String basePath) {
+    public NettyHandshakeAuthHandler(String basePath, ChatAccountChecker accountChecker) {
         this.basePath = basePath;
+        this.accountChecker = accountChecker;
     }
 
     /** 处理 HTTP 请求，校验路径参数与 token。 */
@@ -52,7 +55,7 @@ public class NettyHandshakeAuthHandler extends ChannelInboundHandlerAdapter {
             token = firstHeader(request, "token");
         }
 
-        if (token == null || !NettyWebSocketServer.authenticate(ctx.channel(), segs[0], segs[1], token)) {
+        if (token == null || !NettyWebSocketServer.authenticate(ctx.channel(), segs[0], segs[1], token, accountChecker)) {
             reject(ctx, request, "鉴权失败");
             return;
         }

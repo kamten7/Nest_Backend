@@ -16,6 +16,8 @@ public class PushService {
     public static final String TYPE_COMMENT = "comment";
     public static final String TYPE_LIKE = "like";
     public static final String TYPE_READ_RECEIPT = "read_receipt";
+    public static final String TYPE_MSG_ACK = "msg_ack";
+    public static final String TYPE_MSG_ERROR = "msg_error";
 
     private final MessageTransport transport;
 
@@ -64,6 +66,20 @@ public class PushService {
                 .put("readerType", readerType)
                 .put("readerId", readerId)
                 .put("lastReadMsgId", lastReadMsgId));
+    }
+
+    /** 发送回执：把服务端消息 ID 绑回客户端幂等键，客户端据此把「发送中」置为「已送达」。 */
+    public void pushMsgAck(String toType, Long toId, String clientMsgId, Long msgId) {
+        send(toType, toId, PushMessage.of(TYPE_MSG_ACK)
+                .put("clientMsgId", clientMsgId)
+                .put("msgId", msgId));
+    }
+
+    /** 发送失败回执：校验/落库被拒时通知发送方停止重试。 */
+    public void pushMsgError(String toType, Long toId, String clientMsgId, String reason) {
+        send(toType, toId, PushMessage.of(TYPE_MSG_ERROR)
+                .put("clientMsgId", clientMsgId)
+                .put("reason", reason));
     }
 
     /** 评论通知。 */

@@ -1,5 +1,7 @@
 package com.nest.chat.jsr356;
 
+import com.nest.chat.config.ApplicationContextHolder;
+import com.nest.chat.core.ChatAccountChecker;
 import com.nest.constant.JwtConstant;
 import com.nest.utils.JwtUtil;
 import io.jsonwebtoken.Claims;
@@ -67,6 +69,10 @@ public class ChatWebSocketConfigurator extends ServerEndpointConfig.Configurator
                 log.warn("WebSocket token 与路径 userId 不匹配: path={}, tokenUserId={}", pathUserId, userId);
                 throw new SecurityException("token 与用户不匹配");
             }
+            if (!isActive(pathUserType, userId)) {
+                log.warn("WebSocket 握手被拒（账号不可用）: {}/{}", pathUserType, userId);
+                throw new SecurityException("账号不可用");
+            }
             config.getUserProperties().put(ATTR_USER_TYPE, pathUserType);
             config.getUserProperties().put(ATTR_USER_ID, userId);
             log.info("WebSocket 握手鉴权通过: {}/{}", pathUserType, userId);
@@ -75,6 +81,15 @@ public class ChatWebSocketConfigurator extends ServerEndpointConfig.Configurator
         } catch (Exception e) {
             log.warn("WebSocket 握手 token 无效: {}", e.getMessage());
             throw new SecurityException("token 无效或已过期");
+        }
+    }
+
+    /** 账号可用性校验缺失时按不可用处理（fail closed）。 */
+    private boolean isActive(String userType, Long userId) {
+        try {
+            return ApplicationContextHolder.getBean(ChatAccountChecker.class).isActive(userType, userId);
+        } catch (Exception e) {
+            return false;
         }
     }
 

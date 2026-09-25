@@ -12,6 +12,8 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import jakarta.servlet.AsyncContext;
+import jakarta.servlet.AsyncEvent;
+import jakarta.servlet.AsyncListener;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** AI 找房服务实现 —— SSE 流式输出。 */
 @Slf4j
@@ -35,13 +41,18 @@ public class AiUserServiceImpl implements AiUserService {
     /** LangChain4j 的记忆存储抽象；运行时由 nest-server 的 RedisChatMemoryStore 实现 */
     private final ChatMemoryStore chatMemoryStore;
 
+    /** 同租户对话串行信号量：记忆读改写非原子，并发多路流会互相覆盖；tryAcquire 失败直接提示稍后再试。
+     *  用 Semaphore 而非 ReentrantLock：终态收口(finish)由模型回调线程或容器超时线程执行，
+     *  与获取许可的请求线程不是同一个，ReentrantLock 非持有者 unlock 会抛 IllegalMonitorStateException。
+     */
+    private final Map<Long, Semaphore> tenantChatLocks = new ConcurrentHashMap<>();
+
     public AiUserServiceImpl(TenantAiAssistant tenantAiAssistant, ChatMemoryStore chatMemoryStore) {
         this.tenantAiAssistant = tenantAiAssistant;
         this.chatMemoryStore = chatMemoryStore;
     }
 
     @Override
-    /** 流式 AI 找房对话（SSE）；catch 用 Exception 而非 IOException 以兜住所有异常。 */
     public void streamChat(String message, AsyncContext asyncContext) {
         HttpServletResponse response = (HttpServletResponse) asyncContext.getResponse();
         response.setContentType("text/event-stream");
@@ -62,40 +73,85 @@ public class AiUserServiceImpl implements AiUserService {
             return;
         }
 
+        Semaphore lock = tenantChatLocks.computeIfAbsent(tenantId, k -> new Semaphore(1));
+        if (!lock.tryAcquire()) {
+            writeSSEAndClose(response, "data:" + MessageConstant.AI_CHAT_IN_PROGRESS + "\n\n", "data: [DONE]\n\n");
+            asyncContext.complete();
+            return;
+        }
+
         log.info("AI 找房对话 [tenantId={}]: {}", tenantId,
                 message.length() > 50 ? message.substring(0, 50) + "..." : message);
 
+        PrintWriter writer;
         try {
-            PrintWriter writer = response.getWriter();
+            writer = response.getWriter();
+        } catch (IOException e) {
+            log.error("AI 对话获取输出流失败 [tenantId={}]", tenantId, e);
+            lock.release();
+            asyncContext.complete();
+            return;
+        }
+
+        AtomicBoolean finished = new AtomicBoolean();
+        asyncContext.addListener(new AsyncListener() {
+            @Override
+            public void onTimeout(AsyncEvent event) {
+                finish(finished, writer, asyncContext, lock, true);
+            }
+
+            @Override
+            public void onError(AsyncEvent event) {
+                finish(finished, writer, asyncContext, lock, true);
+            }
+
+            @Override
+            public void onComplete(AsyncEvent event) {
+            }
+
+            @Override
+            public void onStartAsync(AsyncEvent event) {
+            }
+        });
+
+        try {
             TokenStream tokenStream = tenantAiAssistant.chat(tenantId, message);
-            tokenStream.onPartialResponse(token -> writeSSE(writer, token))
-                    .onCompleteResponse(resp -> {
-                        writeSSE(writer, "[DONE]");
-                        writer.flush();
-                        writer.close();
-                        log.info("AI 对话完成 [tenantId={}]", tenantId);
-                        asyncContext.complete();
+            tokenStream.onPartialResponse(token -> {
+                        if (!finished.get()) {
+                            writeSSE(writer, token);
+                        }
                     })
+                    .onCompleteResponse(resp -> finish(finished, writer, asyncContext, lock, false))
                     .onError(error -> {
                         log.error("AI 对话失败 [tenantId={}]", tenantId, error);
-                        try {
-                            writeSSE(writer, "[ERROR] " + MessageConstant.AI_SERVICE_ERROR);
-                            writeSSE(writer, "[DONE]");
-                            writer.flush();
-                            writer.close();
-                        } catch (Exception ignored) {
-                        }
-                        asyncContext.complete();
+                        finish(finished, writer, asyncContext, lock, true);
                     })
                     .start();
         } catch (Exception e) {
             log.error("AI 对话异常 [tenantId={}]", tenantId, e);
-            try {
-                writeSSE(response.getWriter(), "[ERROR] " + MessageConstant.AI_SERVICE_ERROR);
-                writeSSE(response.getWriter(), "[DONE]");
-            } catch (Exception ignored) { }
-            asyncContext.complete();
+            finish(finished, writer, asyncContext, lock, true);
         }
+    }
+
+    /** 终态收口：写结束帧、complete、放锁全程只执行一次（容器超时/断开事件与模型回调竞争同一标志位）。 */
+    private void finish(AtomicBoolean finished, PrintWriter writer, AsyncContext asyncContext,
+                        Semaphore lock, boolean asError) {
+        if (!finished.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            if (asError) {
+                writeSSE(writer, "[ERROR] " + MessageConstant.AI_SERVICE_ERROR);
+            }
+            writeSSE(writer, "[DONE]");
+            writer.close();
+        } catch (Exception ignored) {
+        }
+        try {
+            asyncContext.complete();
+        } catch (Exception ignored) {
+        }
+        lock.release();
     }
 
     /**

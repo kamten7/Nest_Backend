@@ -20,6 +20,7 @@ public class Message {
     private Long senderId;
     private String content;
     private String msgType;
+    private String clientMsgId;
     private Integer isRead;
     private LocalDateTime createTime;
 }

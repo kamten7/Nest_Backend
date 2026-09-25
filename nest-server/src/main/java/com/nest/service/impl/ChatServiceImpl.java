@@ -21,6 +21,7 @@ import com.nest.vo.ConversationVO;
 import com.nest.vo.MessageVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -59,7 +60,7 @@ public class ChatServiceImpl implements ChatService {
     private final LandlordMapper landlordMapper;
     private final PushService pushService;
 
-    /** 发送聊天消息：校验→找/建会话→落库→更新会话 → netty推送。 */
+    /** 发送聊天消息：校验→幂等查重→找/建会话→落库→更新会话 → netty推送 + 发送方 ack。 */
     @Override
     @Transactional
     public Long send(String fromType, Long fromId, String toType, Long toId,
@@ -67,6 +68,16 @@ public class ChatServiceImpl implements ChatService {
         validateContent(content);
         String type = validateAndNormalizeMsgType(msgType);
         validatePeer(fromType, fromId, toType, toId);
+
+        String idemKey = clientMsgId == null || clientMsgId.isBlank() ? null : clientMsgId;
+        if (idemKey != null) {
+            Message dup = messageMapper.selectByClientMsgId(fromType, fromId, idemKey);
+            if (dup != null) {
+                Long dupId = dup.getId();
+                registerAfterCommitPush(() -> pushService.pushMsgAck(fromType, fromId, idemKey, dupId));
+                return dupId;
+            }
+        }
 
         Conversation conversation = conversationMapper.selectByPair(fromType, fromId, toType, toId);
         if (conversation == null) {
@@ -85,9 +96,20 @@ public class ChatServiceImpl implements ChatService {
                 .senderId(fromId)
                 .content(content)
                 .msgType(type)
+                .clientMsgId(idemKey)
                 .isRead(0)
                 .build();
-        messageMapper.insert(message);
+        try {
+            messageMapper.insert(message);
+        } catch (DuplicateKeyException e) {
+            Message dup = messageMapper.selectByClientMsgId(fromType, fromId, idemKey);
+            if (dup == null) {
+                throw e;
+            }
+            Long dupId = dup.getId();
+            registerAfterCommitPush(() -> pushService.pushMsgAck(fromType, fromId, idemKey, dupId));
+            return dupId;
+        }
 
         conversationMapper.updateLastMessage(conversation.getId(),
                 content.length() > 50 ? content.substring(0, 50) : content,
@@ -100,6 +122,9 @@ public class ChatServiceImpl implements ChatService {
         Long messageId = message.getId();
         registerAfterCommitPush(() -> pushService.pushChat(toType, toId, conversationId, messageId,
                 fromType, fromId, vo.getSenderName(), content, vo.getMsgType()));
+        if (idemKey != null) {
+            registerAfterCommitPush(() -> pushService.pushMsgAck(fromType, fromId, idemKey, messageId));
+        }
 
         log.info("聊天消息: convId={}, from={}:{}, to={}:{}, content='{}'",
                 conversationId, fromType, fromId, toType, toId,

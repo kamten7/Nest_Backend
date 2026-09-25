@@ -4,8 +4,8 @@
 <mapper namespace="com.nest.mapper.MessageMapper">
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO message (conversation_id, sender_type, sender_id, content, msg_type, is_read, create_time)
-        VALUES (#{conversationId}, #{senderType}, #{senderId}, #{content}, #{msgType}, 0, NOW())
+        INSERT INTO message (conversation_id, sender_type, sender_id, content, msg_type, client_msg_id, is_read, create_time)
+        VALUES (#{conversationId}, #{senderType}, #{senderId}, #{content}, #{msgType}, #{clientMsgId}, 0, NOW())
     </insert>
 
     <select id="selectByConversation" resultType="Message">
@@ -43,6 +43,14 @@
         WHERE conversation_id = #{conversationId}
           AND is_read = 1
           AND (sender_type != #{viewerType} OR sender_id != #{viewerId})
+    </select>
+
+    <select id="selectByClientMsgId" resultType="Message">
+        SELECT * FROM message
+        WHERE sender_type = #{senderType}
+          AND sender_id = #{senderId}
+          AND client_msg_id = #{clientMsgId}
+        LIMIT 1
     </select>
 
 </mapper>
