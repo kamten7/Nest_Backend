@@ -345,6 +345,8 @@ class WalletLockedWithdrawTest {
     void recharge_doesNotTouchLockedAmount() {
         givenWallet(LANDLORD, "100.00");
         when(walletMapper.increaseBalance(WALLET_ID, new BigDecimal("50.00"))).thenReturn(1);
+        // 持锁回读：入账后的真实余额（100 + 50 = 150）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(LANDLORD, "150.00"));
 
         WalletVO vo = walletService.recharge(LANDLORD, USER_ID, new BigDecimal("50.00"));
 
@@ -361,6 +363,11 @@ class WalletLockedWithdrawTest {
                 Wallet.builder().id(202L).userType(TENANT).userId(8L)
                         .balance(new BigDecimal("0.00")).status(1).build());
         when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("3000.00"))).thenReturn(1);
+        // 持锁回读：押金退回后的真实余额（8000-3000=5000；0+3000=3000）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(LANDLORD, "5000.00"));
+        when(walletMapper.lockById(202L)).thenReturn(Wallet.builder()
+                .id(202L).userType(TENANT).userId(8L)
+                .balance(new BigDecimal("3000.00")).status(1).build());
         when(walletTransactionMapper.insert(any(WalletTransaction.class))).thenAnswer(inv -> {
             WalletTransaction t = inv.getArgument(0);
             t.setId(1000L);

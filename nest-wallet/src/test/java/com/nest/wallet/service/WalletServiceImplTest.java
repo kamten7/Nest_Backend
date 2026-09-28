@@ -186,6 +186,8 @@ class WalletServiceImplTest {
     void recharge_success_increasesBalanceAndWritesIncomeTxn() {
         givenWalletExists("10.00");
         when(walletMapper.increaseBalance(WALLET_ID, new BigDecimal("50.00"))).thenReturn(1);
+        // 持锁回读：入账后的真实余额（10 + 50 = 60）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "60.00", 1));
 
         WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"));
 
@@ -241,6 +243,8 @@ class WalletServiceImplTest {
     void recharge_firstTime_lazyCreatesWalletThenCredits() {
         givenWalletAbsentThenCreated();
         when(walletMapper.increaseBalance(WALLET_ID, new BigDecimal("20.00"))).thenReturn(1);
+        // 持锁回读：入账后的真实余额（0 + 20 = 20）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "20.00", 1));
 
         WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("20.00"));
 
@@ -249,6 +253,23 @@ class WalletServiceImplTest {
         verify(walletMapper, times(1)).insert(any(Wallet.class));
         verify(walletMapper, times(1)).increaseBalance(WALLET_ID, new BigDecimal("20.00"));
         verify(walletTransactionMapper, times(1)).insert(any(WalletTransaction.class));
+    }
+
+    @Test
+    @DisplayName("充值：并发下快照读已过期 → balance_after 必须取持锁回读的真实值，而非旧余额+amount")
+    void recharge_whenSnapshotStale_recordsLockedReReadAsBalanceAfter() {
+        // 快照读拿到的是过期余额 10（另一笔并发充值 +50 已先落库，本事务看不见）
+        givenWalletExists("10.00");
+        when(walletMapper.increaseBalance(WALLET_ID, new BigDecimal("50.00"))).thenReturn(1);
+        // 持锁回读（当前读）：真实余额 10 + 50(别人) + 50(本笔) = 110
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "110.00", 1));
+
+        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"));
+
+        assertThat(vo.getBalance()).isEqualByComparingTo("110.00");
+        WalletTransaction txn = captureTxns(1).getValue();
+        // 旧实现用旧值推算会错记成 10+50=60，流水链从此断裂
+        assertThat(txn.getBalanceAfter()).isEqualByComparingTo("110.00");
     }
 
 
@@ -405,6 +426,11 @@ class WalletServiceImplTest {
         when(walletMapper.selectByUser(JwtConstant.TYPE_LANDLORD, 1L)).thenReturn(payeeWallet);
         when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("100.00"))).thenReturn(1);
         when(walletMapper.increaseBalance(202L, new BigDecimal("100.00"))).thenReturn(1);
+        // 持锁回读：扣款/入账后的真实余额（100-100=0；0+100=100）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "0.00", 1));
+        when(walletMapper.lockById(202L)).thenReturn(Wallet.builder()
+                .id(202L).userType(JwtConstant.TYPE_LANDLORD).userId(1L)
+                .balance(new BigDecimal("100.00")).status(1).build());
 
         AtomicLong seq = new AtomicLong(200L);
         when(walletTransactionMapper.insert(any(WalletTransaction.class))).thenAnswer(invocation -> {
@@ -473,6 +499,11 @@ class WalletServiceImplTest {
                         .userId(1L).balance(BigDecimal.ZERO).status(1).build());
         when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("50.00"))).thenReturn(1);
         when(walletMapper.increaseBalance(202L, new BigDecimal("50.00"))).thenReturn(1);
+        // 持锁回读：扣款/入账后的真实余额（100-50=50；0+50=50）
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "50.00", 1));
+        when(walletMapper.lockById(202L)).thenReturn(Wallet.builder()
+                .id(202L).userType(JwtConstant.TYPE_LANDLORD).userId(1L)
+                .balance(new BigDecimal("50.00")).status(1).build());
 
         AtomicLong seq = new AtomicLong(300L);
         when(walletTransactionMapper.insert(any(WalletTransaction.class))).thenAnswer(invocation -> {
@@ -488,6 +519,33 @@ class WalletServiceImplTest {
         List<WalletTransaction> txns = captureTxns(2).getAllValues();
         assertThat(txns.get(0).getBizNo()).startsWith("TX");
         assertThat(txns.get(1).getBizNo()).isEqualTo(txns.get(0).getBizNo());
+    }
+
+    @Test
+    @DisplayName("转账：并发下快照读已过期 → 流水 balance_after 取持锁回读值（旧实现会记断链值）")
+    void transferPay_whenSnapshotStale_recordsLockedReReadAsBalanceAfter() {
+        // 快照读：付款方余额 100（过期——另一笔并发充值 +100 已先落库，真实余额 200）
+        when(walletMapper.selectByUser(TENANT, USER_ID)).thenReturn(wallet(WALLET_ID, "100.00", 1));
+        when(walletMapper.selectByUser(JwtConstant.TYPE_LANDLORD, 1L))
+                .thenReturn(Wallet.builder().id(202L).userType(JwtConstant.TYPE_LANDLORD)
+                        .userId(1L).balance(BigDecimal.ZERO).status(1).build());
+        // 条件扣款作用于真实余额 200，扣 100 成功（若旧值 100 为真也会成功，rows 分不出新旧实现）
+        when(walletMapper.decreaseBalance(WALLET_ID, new BigDecimal("100.00"))).thenReturn(1);
+        when(walletMapper.increaseBalance(202L, new BigDecimal("100.00"))).thenReturn(1);
+        // 持锁回读（当前读）：付款方真实余额 200-100=100；收款方 0+100=100
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "100.00", 1));
+        when(walletMapper.lockById(202L)).thenReturn(Wallet.builder()
+                .id(202L).userType(JwtConstant.TYPE_LANDLORD).userId(1L)
+                .balance(new BigDecimal("100.00")).status(1).build());
+
+        walletService.transferPay(TENANT, USER_ID, JwtConstant.TYPE_LANDLORD, 1L,
+                new BigDecimal("100.00"), WalletConstant.BIZ_RENT_PAY,
+                WalletConstant.BIZ_RENT_INCOME, null);
+
+        List<WalletTransaction> txns = captureTxns(2).getAllValues();
+        // 旧实现用旧值推算会错记成 100-100=0，与数据库真实值 100 不符
+        assertThat(txns.get(0).getBalanceAfter()).isEqualByComparingTo("100.00");
+        assertThat(txns.get(1).getBalanceAfter()).isEqualByComparingTo("100.00");
     }
 
     @Test

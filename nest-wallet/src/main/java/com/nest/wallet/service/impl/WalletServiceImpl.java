@@ -111,7 +111,11 @@ public class WalletServiceImpl implements WalletService {
         checkUsable(wallet);
 
         walletMapper.increaseBalance(wallet.getId(), amount);
-        BigDecimal balanceAfter = nullToZero(wallet.getBalance()).add(amount);
+        /* 入账后持锁回读真实余额再写流水快照：getByUser 是快照读（无锁），
+           并发下旧余额 + amount 会与真实落库值不符，导致流水的 balance_after 链条断裂 */
+        Wallet current = walletMapper.lockById(wallet.getId());
+        checkUsable(current);
+        BigDecimal balanceAfter = nullToZero(current.getBalance());
 
         WalletTransaction txn = WalletTransaction.builder()
                 .walletId(wallet.getId())
@@ -224,8 +228,18 @@ public class WalletServiceImpl implements WalletService {
         }
         walletMapper.increaseBalance(payee.getId(), amount);
 
-        BigDecimal payerAfter = nullToZero(payer.getBalance()).subtract(amount);
-        BigDecimal payeeAfter = nullToZero(payee.getBalance()).add(amount);
+        /* 扣款/入账后持锁回读双方真实余额作为流水快照（balance_after）。
+           getByUser 是快照读：并发下本钱包可能已有另一笔流水先落账，此时拿旧余额
+           在 Java 里做 ± amount 推算，余额表是对的、流水链却是断的（上一条
+           balance_after ± 本条 amount ≠ 本条 balance_after）。
+           lockById 是当前读（FOR UPDATE）：行锁已握在本事务手里，重入不等待，
+           且必然读到本事务未提交的最新余额 —— 流水里记的是数据库真实值，不是推算值。 */
+        Wallet payerNow = walletMapper.lockById(payer.getId());
+        checkUsable(payerNow);
+        Wallet payeeNow = walletMapper.lockById(payee.getId());
+        checkUsable(payeeNow);
+        BigDecimal payerAfter = nullToZero(payerNow.getBalance());
+        BigDecimal payeeAfter = nullToZero(payeeNow.getBalance());
         String finalBizNo = (bizNo == null || bizNo.isBlank()) ? genBizNo("TX") : bizNo;
         String remark = WalletConstant.bizText(bizTypePay);
 
