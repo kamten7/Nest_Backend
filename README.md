@@ -62,7 +62,6 @@
 | `searchHouses(city, district, keyword)` | 按城市/区域/关键词搜索房源 |
 | `getHouseDetail(houseId)` | 查询单个房源详情（户型、朝向、要求等） |
 | `findNearby(lat, lng, radiusMeters)` | 按坐标查附近房源 |
-| `getHouseReviews(houseId, limit)` | 查看某房源的住客评论 |
 | `recommendHouses(budget, city, preferences, count)` | 按预算与偏好智能推荐 |
 
 ```mermaid
@@ -77,7 +76,7 @@ sequenceDiagram
 
   U->>C: POST /user/ai/chat/stream（SSE）
   C->>S: 传入用户自然语言消息 + 历史记忆
-  S->>M: 请求 + 5 个工具的 JSON Schema
+  S->>M: 请求 + 4 个工具的 JSON Schema
   M-->>S: 决策：调用 searchHouses("湛江市","霞山区")
   S->>T: 反射执行 @Tool
   T->>DB: 真实 SQL 查询（走 MyBatis）
@@ -419,7 +418,7 @@ cd nest-server && mvn spring-boot:run
 ### 第 4 步：跑单测（可选）
 
 ```bash
-mvn test    # 81 个单元测试
+mvn test    # 110 个单元测试
 ```
 
 
@@ -548,7 +547,7 @@ mvn test    # 81 个单元测试
 
 | 项目 | 说明 |
 |------|------|
-| 单元测试 | **81 个**，覆盖钱包锁定/提现、退租退款、分页边界、房源状态流转、租客资料等核心逻辑 |
+| 单元测试 | **110 个**，覆盖钱包锁定/提现、退租退款、分页边界、房源状态流转、租客资料等核心逻辑 |
 | 模块化 | 8 个 Maven 模块单向依赖，无循环依赖 |
 | 配置安全 | 敏感配置全部外置到 gitignore 的本地文件，仓库内只有占位符模板 |
 | 异常处理 | 全局异常处理器统一收敛，响应结构一致（`Result` / `PageResult`） |
