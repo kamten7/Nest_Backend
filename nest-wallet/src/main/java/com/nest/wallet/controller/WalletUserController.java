@@ -38,7 +38,7 @@ public class WalletUserController {
     @Operation(summary = "充值", description = "模拟充值，当前不调微信支付")
     public Result<WalletVO> recharge(@Valid @RequestBody WalletAmountDTO dto) {
         log.info("钱包充值: tenantId={}, amount={}", BaseContext.getCurrentId(), dto.getAmount());
-        WalletVO vo = walletService.recharge(JwtConstant.TYPE_TENANT, BaseContext.getCurrentId(), dto.getAmount());
+        WalletVO vo = walletService.recharge(JwtConstant.TYPE_TENANT, BaseContext.getCurrentId(), dto.getAmount(), dto.getIdempotencyKey());
         return Result.success("充值成功", vo);
     }
 

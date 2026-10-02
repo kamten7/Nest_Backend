@@ -348,7 +348,7 @@ class WalletLockedWithdrawTest {
         // 持锁回读：入账后的真实余额（100 + 50 = 150）
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(LANDLORD, "150.00"));
 
-        WalletVO vo = walletService.recharge(LANDLORD, USER_ID, new BigDecimal("50.00"));
+        WalletVO vo = walletService.recharge(LANDLORD, USER_ID, new BigDecimal("50.00"), null);
 
         assertThat(vo.getBalance()).isEqualByComparingTo("150.00");
         assertThat(vo.getLockedAmount()).isEqualByComparingTo("0");

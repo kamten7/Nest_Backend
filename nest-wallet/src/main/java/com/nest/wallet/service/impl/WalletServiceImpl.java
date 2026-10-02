@@ -53,9 +53,6 @@ public class WalletServiceImpl implements WalletService {
 
     /**
      * 模拟充值开关（默认关闭）。
-     * <p>recharge 目前是「直接给余额加钱」的模拟实现，没有支付回调、没有幂等键 ⇒
-     * 生产环境开着等于任何人都能凭空造钱。因此默认关闭，只允许本地/测试显式打开。
-     * 接入真实支付后应改为「下单 + 回调 + 幂等」链路。</p>
      */
     @Value("${nest.wallet.simulate-recharge-enabled:false}")
     private boolean simulateRechargeEnabled;
@@ -99,7 +96,7 @@ public class WalletServiceImpl implements WalletService {
     /** 充值（模拟）：余额 +amount，写一条 RECHARGE 收入流水。 */
     @Override
     @Transactional
-    public WalletVO recharge(String userType, Long userId, BigDecimal amount) {
+    public WalletVO recharge(String userType, Long userId, BigDecimal amount, String idempotencyKey) {
         if (!simulateRechargeEnabled) {
             log.warn("拒绝模拟充值：nest.wallet.simulate-recharge-enabled=false, userType={}, userId={}",
                     userType, userId);
@@ -107,6 +104,11 @@ public class WalletServiceImpl implements WalletService {
         }
         checkAmount(amount);
         checkRechargeAmount(amount);
+        String idemKey = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim();
+        if (idemKey != null && walletTransactionMapper.selectByIdemKey(idemKey) != null) {
+            log.warn("充值幂等命中（快路径）: userType={}, userId={}, idemKey={}", userType, userId, idemKey);
+            throw new BusinessException(MessageConstant.WALLET_IDEM_DUPLICATE);
+        }
         Wallet wallet = getByUser(userType, userId);
         checkUsable(wallet);
 
@@ -128,11 +130,18 @@ public class WalletServiceImpl implements WalletService {
                 .source(WalletConstant.SOURCE_SIMULATE)
                 .status(WalletConstant.STATUS_SUCCESS)
                 .bizNo(genBizNo("RC"))
+                .idemKey(idemKey)
                 .remark("模拟充值")
                 .build();
-        walletTransactionMapper.insert(txn);
+        try {
+            walletTransactionMapper.insert(txn);
+        } catch (DuplicateKeyException e) {
+            log.warn("充值幂等命中（唯一索引）: walletId={}, idemKey={}", wallet.getId(), idemKey);
+            throw new BusinessException(MessageConstant.WALLET_IDEM_DUPLICATE);
+        }
 
-        log.info("钱包充值: walletId={}, amount={}, balanceAfter={}", wallet.getId(), amount, balanceAfter);
+        log.info("钱包充值: walletId={}, amount={}, balanceAfter={}, idemKey={}",
+                wallet.getId(), amount, balanceAfter, idemKey);
         return buildVO(wallet.getId(), balanceAfter);
     }
 
@@ -221,6 +230,11 @@ public class WalletServiceImpl implements WalletService {
         Wallet payee = getByUser(payeeType, payeeId);
         checkUsable(payer);
         checkUsable(payee);
+
+        long first = Math.min(payer.getId(), payee.getId());
+        long second = Math.max(payer.getId(), payee.getId());
+        walletMapper.lockById(first);
+        walletMapper.lockById(second);
 
         int rows = walletMapper.decreaseBalance(payer.getId(), amount);
         if (rows == 0) {

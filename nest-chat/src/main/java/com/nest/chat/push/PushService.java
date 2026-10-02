@@ -3,6 +3,7 @@ package com.nest.chat.push;
 import com.nest.chat.transport.MessageTransport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** 消息推送服务。业务侧只需注入本类调用，无需关心底层传输实现。 */
@@ -20,6 +21,9 @@ public class PushService {
     public static final String TYPE_MSG_ERROR = "msg_error";
 
     private final MessageTransport transport;
+
+    @Autowired(required = false)
+    private NotifyTaskStore notifyTaskStore;
 
     /** 用户是否在线。 */
     public boolean isOnline(String userType, Long userId) {
@@ -39,8 +43,14 @@ public class PushService {
         transport.send(userType, userId, payload);
     }
 
-    /** 通知类消息（预约、评论、点赞、公告等）。 */
+    /** 通知类消息（预约、评论、点赞、公告等）。离线或推送失败时落补偿任务。 */
     public void pushNotice(String toType, Long toId, String type, String title, String content) {
+        deliverOrCompensate(toType, toId, type, title, content,
+                PushMessage.of(type).put("title", title).put("content", content));
+    }
+
+    /** 通知直发（补偿重试专用）：只尝试在线推送，不再触发补偿落库。 */
+    public void pushNoticeDirect(String toType, Long toId, String type, String title, String content) {
         send(toType, toId, PushMessage.of(type).put("title", title).put("content", content));
     }
 
@@ -85,18 +95,37 @@ public class PushService {
     /** 评论通知。 */
     public void pushComment(String toType, Long toId, String title, String content,
                             Long houseId, Long reviewId) {
-        send(toType, toId, PushMessage.of(TYPE_COMMENT)
-                .put("title", title)
-                .put("content", content)
-                .put("houseId", houseId)
-                .put("reviewId", reviewId));
+        deliverOrCompensate(toType, toId, TYPE_COMMENT, title, content,
+                PushMessage.of(TYPE_COMMENT)
+                        .put("title", title)
+                        .put("content", content)
+                        .put("houseId", houseId)
+                        .put("reviewId", reviewId));
     }
 
     /** 点赞通知。 */
     public void pushLike(String toType, Long toId, String title, String content, Long commentId) {
-        send(toType, toId, PushMessage.of(TYPE_LIKE)
-                .put("title", title)
-                .put("content", content)
-                .put("commentId", commentId));
+        deliverOrCompensate(toType, toId, TYPE_LIKE, title, content,
+                PushMessage.of(TYPE_LIKE)
+                        .put("title", title)
+                        .put("content", content)
+                        .put("commentId", commentId));
+    }
+
+    private void deliverOrCompensate(String toType, Long toId, String type,
+                                     String title, String content, PushMessage message) {
+        try {
+            if (isOnline(toType, toId)) {
+                send(toType, toId, message);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("通知推送异常，转入补偿: toType={}, toId={}, type={}", toType, toId, type, e);
+        }
+        if (notifyTaskStore != null) {
+            notifyTaskStore.save(type, toType, toId, title, content);
+        } else {
+            log.warn("补偿存储未装配，通知丢弃: toType={}, toId={}, type={}", toType, toId, type);
+        }
     }
 }

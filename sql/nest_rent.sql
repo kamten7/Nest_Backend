@@ -412,3 +412,18 @@ SELECT 1, '精装修' WHERE NOT EXISTS (SELECT 1 FROM house_tag WHERE house_id =
 INSERT INTO house_tag (house_id, tag_name)
 SELECT 1, '近地铁' WHERE NOT EXISTS (SELECT 1 FROM house_tag WHERE house_id = 1 AND tag_name = '近地铁');
 -- ==================== 演示数据结束 ====================
+
+-- ==================== 通知补偿任务表（推送失败落库重试，"没有 MQ 的补偿设计"） ====================
+CREATE TABLE IF NOT EXISTS notify_task (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(32) NOT NULL COMMENT '通知类型: appointment/comment/like/notice',
+    user_type VARCHAR(16) NOT NULL COMMENT '目标用户端: tenant/landlord',
+    user_id BIGINT NOT NULL COMMENT '目标用户 ID',
+    title VARCHAR(128) NOT NULL,
+    content VARCHAR(512) NOT NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0待重试 1已送达 2放弃',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_status_retry (status, retry_count, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='推送失败补偿任务';

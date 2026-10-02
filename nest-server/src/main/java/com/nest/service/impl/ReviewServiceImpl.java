@@ -23,6 +23,7 @@ import com.nest.mapper.ReviewLikeMapper;
 import com.nest.mapper.ReviewMapper;
 import com.nest.mapper.TenantMapper;
 import com.nest.order.mapper.RentOrderMapper;
+import com.nest.service.ReviewQueryService;
 import com.nest.service.ReviewService;
 import com.nest.vo.ReviewCommentVO;
 import com.nest.vo.ReviewVO;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReviewServiceImpl implements ReviewService {
+public class ReviewServiceImpl implements ReviewService, ReviewQueryService {
 
     /** 单页最大条数，防止一次拉爆整张表 */
     private static final int MAX_PAGE_SIZE = 50;
@@ -101,6 +102,12 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     /** 查询房源评论列表（分页），含平均分、楼中回复、点赞状态。 */
+    @Override
+    public List<ReviewVO> latestByHouse(Long houseId, int limit) {
+        int size = Math.max(1, Math.min(limit, 10));
+        return listByHouse(houseId, 1, size).getRecords();
+    }
+
     @Override
     public PageResult<ReviewVO> listByHouse(Long houseId, Integer page, Integer pageSize) {
         int pageNum = (page == null || page < 1) ? 1 : page;

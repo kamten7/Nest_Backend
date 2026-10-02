@@ -23,7 +23,8 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.time.Duration;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -45,7 +46,10 @@ public class AiUserServiceImpl implements AiUserService {
      *  用 Semaphore 而非 ReentrantLock：终态收口(finish)由模型回调线程或容器超时线程执行，
      *  与获取许可的请求线程不是同一个，ReentrantLock 非持有者 unlock 会抛 IllegalMonitorStateException。
      */
-    private final Map<Long, Semaphore> tenantChatLocks = new ConcurrentHashMap<>();
+    private final Map<Long, Semaphore> tenantChatLocks = Caffeine.newBuilder()
+            .expireAfterAccess(Duration.ofHours(1))
+            .<Long, Semaphore>build()
+            .asMap();
 
     public AiUserServiceImpl(TenantAiAssistant tenantAiAssistant, ChatMemoryStore chatMemoryStore) {
         this.tenantAiAssistant = tenantAiAssistant;

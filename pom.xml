@@ -131,6 +131,12 @@
                 <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
                 <version>${knife4j}</version>
             </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>2.7.0</version>   <!-- 明确支持 Boot 3.4 / Framework 6.2 -->
+            </dependency>
+
 
             <!-- AspectJ -->
             <dependency>

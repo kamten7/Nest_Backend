@@ -29,9 +29,6 @@ import static org.mockito.Mockito.when;
 
 /**
  * 房源手动上下架状态机测试（白名单 + 条件 UPDATE 守卫）。
- *
- * <p>对应修复：入口白名单只允许 0/1；SQL 带 AND status != 2，
- * 与「确认租房置入在租中」并发时影响行数为 0 → 拒绝，杜绝在租中被下架覆盖。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class HouseStatusUpdateTest {

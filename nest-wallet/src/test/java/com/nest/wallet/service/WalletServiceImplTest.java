@@ -77,7 +77,7 @@ class WalletServiceImplTest {
     void recharge_whenDisabled_throwsAndTouchesNothing() {
         ReflectionTestUtils.setField(walletService, "simulateRechargeEnabled", false);
 
-        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("100.00")))
+        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("100.00"), null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.RECHARGE_DISABLED);
 
@@ -189,7 +189,7 @@ class WalletServiceImplTest {
         // 持锁回读：入账后的真实余额（10 + 50 = 60）
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "60.00", 1));
 
-        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"));
+        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"), null);
 
         assertThat(vo.getBalance()).isEqualByComparingTo("60.00");
         verify(walletMapper, times(1)).increaseBalance(WALLET_ID, new BigDecimal("50.00"));
@@ -214,7 +214,7 @@ class WalletServiceImplTest {
         BigDecimal[] badAmounts = {null, BigDecimal.ZERO, new BigDecimal("-0.01")};
 
         for (BigDecimal bad : badAmounts) {
-            assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, bad))
+            assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, bad, null))
                     .as("amount=%s 应被拒绝", bad)
                     .isInstanceOf(BusinessException.class)
                     .hasMessage(MessageConstant.WALLET_AMOUNT_INVALID);
@@ -230,7 +230,7 @@ class WalletServiceImplTest {
     void recharge_whenWalletFrozen_throwsAndDoesNotIncrease() {
         when(walletMapper.selectByUser(TENANT, USER_ID)).thenReturn(wallet(WALLET_ID, "10.00", 0));
 
-        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("10.00")))
+        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("10.00"), null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(MessageConstant.WALLET_FROZEN);
 
@@ -246,7 +246,7 @@ class WalletServiceImplTest {
         // 持锁回读：入账后的真实余额（0 + 20 = 20）
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "20.00", 1));
 
-        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("20.00"));
+        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("20.00"), null);
 
         assertThat(vo.getWalletId()).isEqualTo(WALLET_ID);
         assertThat(vo.getBalance()).isEqualByComparingTo("20.00");
@@ -264,12 +264,40 @@ class WalletServiceImplTest {
         // 持锁回读（当前读）：真实余额 10 + 50(别人) + 50(本笔) = 110
         when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "110.00", 1));
 
-        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"));
+        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"), null);
 
         assertThat(vo.getBalance()).isEqualByComparingTo("110.00");
         WalletTransaction txn = captureTxns(1).getValue();
         // 旧实现用旧值推算会错记成 10+50=60，流水链从此断裂
         assertThat(txn.getBalanceAfter()).isEqualByComparingTo("110.00");
+    }
+
+    @Test
+    @DisplayName("充值：带幂等键且首次受理 → 落库流水带该键")
+    void recharge_withIdempotencyKey_recordsKeyOnTxn() {
+        givenWalletExists("10.00");
+        when(walletMapper.increaseBalance(WALLET_ID, new BigDecimal("50.00"))).thenReturn(1);
+        when(walletTransactionMapper.selectByIdemKey("rc-key-1")).thenReturn(null);
+        when(walletMapper.lockById(WALLET_ID)).thenReturn(wallet(WALLET_ID, "60.00", 1));
+
+        WalletVO vo = walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"), "rc-key-1");
+
+        assertThat(vo.getBalance()).isEqualByComparingTo("60.00");
+        WalletTransaction txn = captureTxns(1).getValue();
+        assertThat(txn.getIdemKey()).isEqualTo("rc-key-1");
+    }
+
+    @Test
+    @DisplayName("充值：同一幂等键重复提交 → 快路径拒绝且不动余额")
+    void recharge_withDuplicateIdempotencyKey_throwsWithoutBalanceChange() {
+        when(walletTransactionMapper.selectByIdemKey("rc-key-1")).thenReturn(new WalletTransaction());
+
+        assertThatThrownBy(() -> walletService.recharge(TENANT, USER_ID, new BigDecimal("50.00"), "rc-key-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(MessageConstant.WALLET_IDEM_DUPLICATE);
+
+        verify(walletMapper, never()).increaseBalance(any(), any());
+        verify(walletTransactionMapper, never()).insert(any(WalletTransaction.class));
     }
 
 

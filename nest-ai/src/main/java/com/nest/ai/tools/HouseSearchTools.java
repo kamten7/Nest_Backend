@@ -3,8 +3,10 @@ package com.nest.ai.tools;
 import com.nest.common.PageResult;
 import com.nest.dto.HouseQueryDTO;
 import com.nest.service.HouseService;
+import com.nest.service.ReviewQueryService;
 import com.nest.vo.HouseMarkerVO;
 import com.nest.vo.HouseVO;
+import com.nest.vo.ReviewVO;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.StringJoiner;
 
@@ -21,7 +24,10 @@ import java.util.StringJoiner;
 @RequiredArgsConstructor
 public class HouseSearchTools {
 
+    private static final DateTimeFormatter REVIEW_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     private final HouseService houseService;
+    private final ReviewQueryService reviewQueryService;
 
     @Tool("搜索房源。城市放 city（如'湛江市'），区域放 district（如'霞山区'），keyword 只放小区名/地址/标题关键词（如'银帆花园'）。不要把区域名、城市名或整句话塞进 keyword")
     /** 搜索房源；无结果时分级放宽，先丢 keyword（只在 title/description 上 LIKE）。 */
@@ -43,6 +49,9 @@ public class HouseSearchTools {
             @P("返回条数，1-10，默认 5")
             Integer limit) {
         int size = limit != null && limit > 0 && limit <= 10 ? limit : 5;
+        minPrice = normalizePrice(minPrice);
+        maxPrice = normalizePrice(maxPrice);
+        roomCount = normalizeRoomCount(roomCount);
 
         PageResult<HouseVO> result = houseService.list(
                 buildQuery(keyword, city, district, minPrice, maxPrice, rentType, roomCount, size));
@@ -64,7 +73,30 @@ public class HouseSearchTools {
                 keyword, city, district, roomCount, rentType, minPrice, maxPrice, size,
                 result.getRecords() == null ? 0 : result.getRecords().size(), relaxed);
 
-        return formatHouses(result.getRecords());
+        return formatHouses(result.getRecords())
+                + "\n[本次筛选] " + filterSummary(keyword, city, district, minPrice, maxPrice, rentType, roomCount);
+    }
+
+    private String filterSummary(String keyword, String city, String district,
+                                 Double minPrice, Double maxPrice, String rentType, Integer roomCount) {
+        StringJoiner sj = new StringJoiner("，");
+        if (notBlank(city)) sj.add("城市=" + city.trim());
+        if (notBlank(district)) sj.add("区域=" + district.trim());
+        if (notBlank(keyword)) sj.add("关键词=" + keyword.trim());
+        if (minPrice != null) sj.add("最低月租=" + minPrice + "元");
+        if (maxPrice != null) sj.add("最高月租=" + maxPrice + "元");
+        if (notBlank(rentType)) sj.add("方式=" + rentType.trim());
+        if (roomCount != null) sj.add(roomCount + "居室");
+        if (sj.length() == 0) sj.add("未指定条件，按最新上架排序");
+        return sj.toString();
+    }
+
+    private Double normalizePrice(Double price) {
+        return price != null && price > 0 ? price : null;
+    }
+
+    private Integer normalizeRoomCount(Integer roomCount) {
+        return roomCount != null && roomCount > 0 ? roomCount : null;
     }
 
     private HouseQueryDTO buildQuery(String keyword, String city, String district,
@@ -138,13 +170,28 @@ public class HouseSearchTools {
         return sb.toString();
     }
 
-    @Tool("查看某房源的住客评论")
+    @Tool("查看某房源的住客评价，返回评分、内容与评价时间")
     public String getHouseReviews(Long houseId, Integer limit) {
-        return "该房源暂无评论（评论功能即将上线）";
+        if (houseId == null) return "房源 ID 不能为空";
+        int size = limit != null && limit > 0 && limit <= 10 ? limit : 5;
+        List<ReviewVO> reviews = reviewQueryService.latestByHouse(houseId, size);
+        if (reviews == null || reviews.isEmpty()) {
+            return "该房源暂无评价";
+        }
+        StringJoiner sb = new StringJoiner("\n");
+        sb.add("该房源最近 " + reviews.size() + " 条评价：");
+        for (int i = 0; i < reviews.size(); i++) {
+            ReviewVO r = reviews.get(i);
+            String time = r.getCreateTime() == null ? "" : "（" + REVIEW_TIME_FORMATTER.format(r.getCreateTime()) + "）";
+            String rating = r.getRating() == null ? "" : r.getRating() + "分/";
+            sb.add((i + 1) + ". " + rating + r.getContent() + " —— " + r.getTenantName() + time);
+        }
+        return sb.toString();
     }
 
-    @Tool("根据预算和偏好智能推荐房源")
+    @Tool("根据预算和偏好智能推荐房源；用户未说预算时不要传 budget")
     public String recommendHouses(Double budget, String city, String preferences, Integer count) {
+        budget = normalizePrice(budget);
         HouseQueryDTO dto = new HouseQueryDTO();
         dto.setCity(city);
         dto.setMaxPrice(budget != null ? BigDecimal.valueOf(budget) : null);
