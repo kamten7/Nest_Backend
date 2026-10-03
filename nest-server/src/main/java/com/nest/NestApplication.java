@@ -20,7 +20,7 @@ public class NestApplication {
                 ============================================================
                   🏠  Nest 租房平台 启动成功！
                 ============================================================
-                  API 文档：  http://localhost:8080/doc.html
+                  API 文档：  http://localhost:8080/swagger-ui/index.html
                   健康检查：  http://localhost:8080/actuator/health
                 ============================================================
                 """);

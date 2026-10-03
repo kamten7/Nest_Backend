@@ -34,14 +34,6 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 );
     }
 
-    /** Knife4j 静态资源映射。 */
-    @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/doc.html")
-                .addResourceLocations("classpath:/META-INF/resources/");
-        registry.addResourceHandler("/webjars/**")
-                .addResourceLocations("classpath:/META-INF/resources/webjars/");
-    }
 
     /** 跨域配置。开发环境放开所有来源，上线应收紧为具体域名。 */
     @Override

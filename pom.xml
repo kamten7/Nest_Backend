@@ -36,7 +36,6 @@
         <druid>1.2.23</druid>
         <pagehelper>2.1.0</pagehelper>
         <minio>8.5.17</minio>
-        <knife4j>4.5.0</knife4j>
         <aspectj>1.9.22</aspectj>
         <jjwt>0.12.6</jjwt>
         <poi>5.4.0</poi>
@@ -127,14 +126,9 @@
 
             <!-- Knife4j API 文档 -->
             <dependency>
-                <groupId>com.github.xiaoymin</groupId>
-                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-                <version>${knife4j}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                <version>2.7.0</version>   <!-- 明确支持 Boot 3.4 / Framework 6.2 -->
+                <version>2.7.0</version>
             </dependency>
 
 
