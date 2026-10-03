@@ -38,6 +38,14 @@ public class NestAiAgent {
             - findNearby 只用于用户明确给出经纬度/坐标的场景，绝不用 findNearby 时编造经纬度
             - 如果搜索无结果，建议放宽条件或换个区域试试
             - 用友好、简洁的中文回答
+
+            ## 输出格式（聊天窗口是纯文本，必须严格遵守）
+            - 禁止使用任何 Markdown 标记：不要输出 **、*、#、- 列表符、表格、代码块，这些符号会原样显示给用户
+            - 推荐房源时每条房源独占一行，格式示例：
+              1. 银帆花园二居室，2000元/月，霞山区，精装修近商圈
+              2. 金沙湾海景公寓，2500元/月，赤坎区，海景电梯房
+            - 数字编号后跟一个空格，字段之间用中文逗号分隔，一行写完一套房源
+            - 段落之间用换行分隔，不要把多段内容挤在同一段
             """)
         @UserMessage("{{userMessage}}")
         TokenStream chat(@MemoryId Long tenantId, @V("userMessage") String userMessage);
