@@ -29,7 +29,9 @@ public class    HouseCreateDTO {
     private String city;
     @Size(max = 50, message = "区县名称过长")
     private String district;
+    @NotNull(message = "请为房源选择地图位置（纬度缺失）")
     private Double latitude;
+    @NotNull(message = "请为房源选择地图位置（经度缺失）")
     private Double longitude;
     @NotNull(message = "月租金不能为空")
     @DecimalMin(value = "0", inclusive = false, message = "月租金必须大于 0")

@@ -73,8 +73,11 @@ public class HouseSearchTools {
                 keyword, city, district, roomCount, rentType, minPrice, maxPrice, size,
                 result.getRecords() == null ? 0 : result.getRecords().size(), relaxed);
 
-        return formatHouses(result.getRecords())
-                + "\n[本次筛选] " + filterSummary(keyword, city, district, minPrice, maxPrice, rentType, roomCount);
+        String relaxedNotice = "无".equals(relaxed)
+                ? ""
+                : "\n[提示] 未找到与原始条件完全匹配的房源，以下结果已放宽条件（" + relaxed + "），每条房源的区域/价格以下方数据为准，不得改写";
+        return relaxedNotice + "\n[本次筛选] " + filterSummary(keyword, city, district, minPrice, maxPrice, rentType, roomCount)
+                + "\n" + formatHouses(result.getRecords());
     }
 
     private String filterSummary(String keyword, String city, String district,
@@ -204,9 +207,10 @@ public class HouseSearchTools {
         if (houses == null || houses.isEmpty()) {
             return "没有符合预算" + (budget != null ? budget + "元" : "") + "的房源，建议适当放宽预算";
         }
+        String cityNote = (city == null || city.isBlank()) ? "全部城市" : city.trim();
 
         StringJoiner sb = new StringJoiner("\n");
-        sb.add("为您推荐以下房源：");
+        sb.add("以下房源均位于 " + cityNote + "（数据来自数据库真实查询结果，区域以每条标注为准）：");
         for (int i = 0; i < houses.size(); i++) {
             HouseVO h = houses.get(i);
             sb.add((i + 1) + ". " + h.getTitle() + "，¥" + h.getPrice() + "/月，"
