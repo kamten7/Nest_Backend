@@ -21,6 +21,7 @@ import com.nest.entity.RentReminderLog;
 import com.nest.entity.RentTermination;
 import com.nest.exception.BusinessException;
 import com.nest.order.mapper.RentAppointmentMapper;
+import com.nest.order.event.HouseStatusChangedEvent;
 import com.nest.order.mapper.RentHouseMapper;
 import com.nest.order.mapper.RentOrderMapper;
 import com.nest.order.mapper.RentPaymentMapper;
@@ -36,6 +37,7 @@ import com.nest.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,6 +81,7 @@ public class RentOrderServiceImpl implements RentOrderService {
     private final RentHouseMapper rentHouseMapper;
     private final WalletService walletService;
     private final PushService pushService;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -144,6 +147,7 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (rentRows == 0) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_RENTABLE);
         }
+        eventPublisher.publishEvent(new HouseStatusChangedEvent(src.getHouseId()));
 
         // 通知房东：有租客确认租房了。推送失败不影响建单。
         try {
@@ -351,7 +355,10 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (rows == 0) {
             throw new BusinessException(MessageConstant.RENT_ORDER_CANNOT_CANCEL);
         }
-        rentHouseMapper.markAvailableIfRented(order.getHouseId());
+        int releaseRows = rentHouseMapper.markAvailableIfRented(order.getHouseId());
+        if (releaseRows > 0) {
+            eventPublisher.publishEvent(new HouseStatusChangedEvent(order.getHouseId()));
+        }
         // 预约收尾：已成交(5) → 已取消(4)。
         // 不回写会让预约列表里留下一条「已成交」却没有任何订单的记录（语义不实）；
         // 早前还把 5 当成「占用中」，直接导致该房源再也无法重新预约。条件更新，幂等。
@@ -427,6 +434,8 @@ public class RentOrderServiceImpl implements RentOrderService {
         int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
         if (offRows == 0) {
             log.warn("退租结算后房源未置为下架（状态非 2 或已被改）: orderId={}, houseId={}", orderId, order.getHouseId());
+        } else {
+            eventPublisher.publishEvent(new HouseStatusChangedEvent(order.getHouseId()));
         }
         log.info("退租结算完成(房东): orderId={}, deposit={}, deduct={}, 押金退回={}, 预付租金退回={}",
                 orderId, deposit, deduct, refund, prepaidRefund);
@@ -501,6 +510,8 @@ public class RentOrderServiceImpl implements RentOrderService {
         int offRows = rentHouseMapper.markOfflineIfRented(order.getHouseId());
         if (offRows == 0) {
             log.warn("自动退租结算后房源未置为下架: orderId={}, houseId={}", order.getId(), order.getHouseId());
+        } else {
+            eventPublisher.publishEvent(new HouseStatusChangedEvent(order.getHouseId()));
         }
         log.info("退租结算完成(系统自动): orderId={}, terminationId={}, 押金退回={}, 预付租金退回={}",
                 order.getId(), terminationId, deposit, prepaidRefund);
@@ -540,6 +551,8 @@ public class RentOrderServiceImpl implements RentOrderService {
         if (houseRows == 0) {
             log.warn("超时取消后房源未恢复为上架（状态非 2 或已被改）: orderId={}, houseId={}",
                     orderId, order.getHouseId());
+        } else {
+            eventPublisher.publishEvent(new HouseStatusChangedEvent(order.getHouseId()));
         }
         // 预约收尾：已成交(5) → 已取消(4)，与租客主动放弃保持一致
         int apptRows = rentAppointmentMapper.markCancelledIfDeal(

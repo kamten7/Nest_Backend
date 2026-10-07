@@ -7,6 +7,7 @@ import com.nest.constant.WalletConstant;
 import com.nest.entity.RentOrder;
 import com.nest.entity.RentTermination;
 import com.nest.exception.BusinessException;
+import com.nest.order.event.HouseStatusChangedEvent;
 import com.nest.order.mapper.RentAppointmentMapper;
 import com.nest.order.mapper.RentHouseMapper;
 import com.nest.order.mapper.RentOrderMapper;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -62,6 +64,7 @@ class RentTerminateRefundTest {
     @Mock private RentHouseMapper rentHouseMapper;
     @Mock private WalletService walletService;
     @Mock private PushService pushService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private RentOrderServiceImpl rentOrderService;
 
@@ -178,6 +181,25 @@ class RentTerminateRefundTest {
                 eq(new BigDecimal("1500.00")), eq(new BigDecimal("1000.00")),
                 eq(12L), eq(12L), any(LocalDateTime.class), eq("墙面打孔扣款"));
         verify(rentOrderMapper).toTerminated(ORDER_ID);
+    }
+
+    @Test
+    @DisplayName("结算后发布房源状态变更事件（触发缓存失效）")
+    void settleRefund_publishesHouseStatusChangedEvent() {
+        RentOrder order = rentingOrder(2, YearMonth.now().plusMonths(2));
+        order.setStatus(RentOrderStatus.TERMINATING);
+        RentTermination termination = pendingTermination(YearMonth.now(), 1, new BigDecimal("1000.00"));
+        when(rentOrderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(rentTerminationMapper.selectByOrderId(ORDER_ID)).thenReturn(termination);
+        when(walletService.transferPay(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(new Long[]{11L, 12L});
+        when(rentTerminationMapper.markRefunded(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(rentOrderMapper.toTerminated(ORDER_ID)).thenReturn(1);
+        when(rentHouseMapper.markOfflineIfRented(100L)).thenReturn(1);
+
+        rentOrderService.settleRefund(LANDLORD_ID, ORDER_ID, new BigDecimal("500.00"), "墙面打孔扣款");
+
+        verify(eventPublisher).publishEvent(new HouseStatusChangedEvent(100L));
     }
 
     @Test
