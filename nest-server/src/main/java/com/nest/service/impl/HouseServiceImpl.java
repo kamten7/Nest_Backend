@@ -38,11 +38,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+
 /** 房源服务实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class HouseServiceImpl implements HouseService {
+
+    private final static String CACHE_KEY_PREFIX="cache:house:detail:";
+    private final static Integer CACHE_TTL_BASE = 30;
+    private final static Integer CACHE_NULL_TTL = 2;
+    private final static String CACHE_LOCK_PREFIX = "cache:house:lock:";
+    private final static Integer CACHE_TTL_RANDOM = 10;
+
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
     private final HouseMapper houseMapper;
     private final HouseImageMapper houseImageMapper;
@@ -67,7 +85,10 @@ public class HouseServiceImpl implements HouseService {
         return house.getId();
     }
 
-    /** 更新房源（房东端）。图片和标签采用"先删后插"整体替换策略。 */
+    /**
+     * 更新房源（房东端）。图片和标签采用"先删后插"整体替换策略。
+     * 更新完成后，刷新缓存。
+     */
     @Override
     @Transactional
     public void update(Long houseId, HouseCreateDTO dto) {
@@ -88,16 +109,24 @@ public class HouseServiceImpl implements HouseService {
         }
 
         log.info("房源更新: id={}", houseId);
+
+        // 刷新缓存
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictDetailCache(houseId);
+                }
+            });
+        } else {
+            evictDetailCache(houseId);
+        }
+
+
     }
 
     /**
      * 上下架/重新发布（房东端）。status: 1=上架, 0=下架；在租中(2) 不允许手动改。
-     *
-     * <p>两道防线：① 入口白名单——手动上下架只允许 0/1，其余值（含 2 与任意脏值）直接拒绝，
-     * 状态机的「在租中」只能由订单模块流转置入；② SQL 条件守卫——{@code updateStatus} 带
-     * {@code AND status != 2}，与「确认租房」并发时条件 UPDATE 抢不到就影响行数为 0，
-     * 据此拒绝，杜绝「在租中被下架覆盖」的 TOCTOU。与订单模块的
-     * {@code activateAfterDeposit}/{@code markAvailableIfRented} 同一模式，全项目统一。</p>
      */
     @Override
     public void updateStatus(Long houseId, Integer status) {
@@ -112,6 +141,18 @@ public class HouseServiceImpl implements HouseService {
             throw new BusinessException(MessageConstant.HOUSE_RENTED_NO_MANUAL);
         }
         log.info("房源状态变更: id={}, status={}", houseId, status);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictDetailCache(houseId);
+                }
+            });
+        } else {
+            evictDetailCache(houseId);
+        }
+
     }
 
     /**
@@ -136,6 +177,16 @@ public class HouseServiceImpl implements HouseService {
         houseTagMapper.deleteByHouseId(houseId);
         houseMapper.deleteById(houseId);
         log.info("房源删除: id={}", houseId);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    evictDetailCache(houseId);
+                }
+            });
+        } else {
+            evictDetailCache(houseId);
+        }
     }
 
     /** 我的房源列表（房东端，分页）。参数来自 @RequestParam 裸值，统一走 PageParam 收口。 */
@@ -195,39 +246,69 @@ public class HouseServiceImpl implements HouseService {
 
     /**
      * 房源详情（用户端，可选认证）。
-     *
-     * <p>默认只允许查看已上架房源；但**租过这套房的租客（含已退租）可以回看**——
-     * 退租结算会把房源打回「下架」，若不放开，退租租客就再也进不来房源页看评论、追评了。
      */
     @Override
     public HouseVO detail(Long houseId) {
-        House house = houseMapper.selectById(houseId);
-        Long currentId = BaseContext.getCurrentId();
-        boolean rentedByMe = currentId != null
-                && JwtConstant.TYPE_TENANT.equals(BaseContext.getCurrentType())
-                && rentOrderMapper.countByTenantAndHouse(currentId, houseId) > 0;
-
-        if (house == null || (house.getStatus() != 1 && !rentedByMe)) {
+        if (houseId == null || houseId <= 0) {
             throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
         }
+        String key = CACHE_KEY_PREFIX + houseId;
 
-        houseMapper.incrementViewCount(houseId);
-        HouseVO vo = buildVO(house, true);
-
-        List<HouseImage> images = houseImageMapper.selectByHouseId(houseId);
-        vo.setImages(images.stream().map(HouseImage::getUrl).collect(Collectors.toList()));
-
-        List<HouseTag> tags = houseTagMapper.selectByHouseId(houseId);
-        vo.setTags(tags.stream().map(HouseTag::getTagName).collect(Collectors.toList()));
-
-        Landlord landlord = landlordMapper.selectById(house.getLandlordId());
-        if (landlord != null) {
-            vo.setLandlordName(landlord.getName());
-            vo.setLandlordAvatar(landlord.getAvatar());
+        HouseVO cached = readCache(key);
+        if (cached != null) {
+            return cached;
         }
 
-        return vo;
+        //先尝试去获取锁去重建缓存，获取锁成功→重建缓存→释放锁
+        if (acquireRebuildLock(houseId)) {
+            try {
+                //尝试获取锁后，再次检查缓存，防止其他线程已经重建了缓存
+                cached = readCache(key);
+                if (cached != null) {
+                    return cached;
+                }
+
+                House house = houseMapper.selectById(houseId);
+                if (house == null) {
+                    //如果不存在，就设置一个空字符串缓存，过期时间为10分钟，防止缓存穿透问题
+                    stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
+                    throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
+                }
+
+                HouseVO vo = loadDetailFromDb(house, houseId);
+                if (house.getStatus() == 1) {
+                    //如果存在，就写入缓存，过期时间为10分钟
+                    writeCache(houseId, vo);
+                }
+                return vo;
+            } finally {
+                //释放锁
+                stringRedisTemplate.delete(CACHE_LOCK_PREFIX + houseId);
+            }
+        }
+
+        //前面没有拿到锁，就说明有其他线程正在重建缓存，这里就直接重试3次
+        for (int i = 0; i < 3; i++) {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            //重新获取
+            HouseVO retryCached = readCache(key);
+            if (retryCached != null) {
+                return retryCached;
+            }
+        }
+        //三次重试后仍然没有缓存，就直接查库返回，兜底策略
+        House house = houseMapper.selectById(houseId);
+        if (house == null) {
+            throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
+        }
+        return loadDetailFromDb(house, houseId);
     }
+
 
     /** 房东查看自己的房源详情（编辑回填用，不过滤下架状态，但校验归属）。 */
     @Override
@@ -383,4 +464,91 @@ public class HouseServiceImpl implements HouseService {
                 .collect(Collectors.toList());
         houseTagMapper.insertBatch(tags);
     }
+
+    /**
+     * 从数据库加载房源详情
+     */
+    private HouseVO loadDetailFromDb(House house, Long houseId) {
+        Long currentId = BaseContext.getCurrentId();
+        boolean rentedByMe = currentId != null
+                && JwtConstant.TYPE_TENANT.equals(BaseContext.getCurrentType())
+                && rentOrderMapper.countByTenantAndHouse(currentId, houseId) > 0;
+
+        if (house.getStatus() != 1 && !rentedByMe) {
+            throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
+        }
+
+        houseMapper.incrementViewCount(houseId);
+        HouseVO vo = buildVO(house, true);
+
+        List<HouseImage> images = houseImageMapper.selectByHouseId(houseId);
+        vo.setImages(images.stream().map(HouseImage::getUrl).collect(Collectors.toList()));
+
+        List<HouseTag> tags = houseTagMapper.selectByHouseId(houseId);
+        vo.setTags(tags.stream().map(HouseTag::getTagName).collect(Collectors.toList()));
+
+        Landlord landlord = landlordMapper.selectById(house.getLandlordId());
+        if (landlord != null) {
+            vo.setLandlordName(landlord.getName());
+            vo.setLandlordAvatar(landlord.getAvatar());
+        }
+        return vo;
+    }
+
+    /**
+     * 读取房源缓存
+     */
+    private HouseVO readCache(String key) {
+        try {
+            String json = stringRedisTemplate.opsForValue().get(key);
+            if (json == null) {
+                return null;
+            }
+            if (json.isBlank()) {
+                throw new BusinessException(MessageConstant.HOUSE_NOT_FOUND);
+            }
+            return objectMapper.readValue(json, HouseVO.class);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("房源缓存读取失败，降级查库: key={}", key, e);
+            return null;
+        }
+    }
+
+    /**
+     * 写入房源缓存
+     */
+    private void writeCache(Long houseId, HouseVO vo) {
+        try {
+            long ttl = CACHE_TTL_BASE * 60 + ThreadLocalRandom.current().nextInt(CACHE_TTL_RANDOM * 60);
+            stringRedisTemplate.opsForValue().set(CACHE_KEY_PREFIX + houseId,
+                    objectMapper.writeValueAsString(vo), ttl, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("房源缓存写入失败: houseId={}", houseId, e);
+        }
+    }
+
+    /**
+     * 获取缓存重建锁
+     */
+    private boolean acquireRebuildLock(Long houseId) {
+        Boolean ok = stringRedisTemplate.opsForValue()
+                .setIfAbsent(CACHE_LOCK_PREFIX + houseId, "1", Duration.ofSeconds(10));
+        return Boolean.TRUE.equals(ok);
+    }
+
+    /**
+     * 释放缓存重建锁
+     */
+    @Override
+    public void evictCache(Long houseId) {
+        evictDetailCache(houseId);
+    }
+
+    private void evictDetailCache(Long houseId) {
+        stringRedisTemplate.delete(CACHE_KEY_PREFIX + houseId);
+    }
+
+
 }

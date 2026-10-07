@@ -27,6 +27,8 @@ public interface HouseService {
 
     HouseVO getOwnedById(Long houseId);
 
+    void evictCache(Long houseId);
+
     java.util.List<com.nest.vo.HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
                                                          Double minLng, Double maxLng,
                                                          Double lat, Double lng, Double radius);

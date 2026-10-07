@@ -10,6 +10,8 @@ import com.nest.mapper.HouseTagMapper;
 import com.nest.mapper.LandlordMapper;
 import com.nest.minio.service.MinioService;
 import com.nest.order.mapper.RentOrderMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import com.nest.service.impl.HouseServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +50,10 @@ class HouseStatusUpdateTest {
     private MinioService minioService;
     @Mock
     private RentOrderMapper rentOrderMapper;
+    @Mock
+    private StringRedisTemplate stringRedisTemplate;
+    @Mock
+    private ObjectMapper objectMapper;
 
     @InjectMocks
     private HouseServiceImpl houseService;
