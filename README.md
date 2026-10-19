@@ -300,6 +300,8 @@ graph TD
 | 实时聊天 | 与房东一对一聊天、离线消息补齐、已读回执 |
 | AI 助手 | SSE 流式对话，多轮记忆 |
 
+> 本地 IDEA 跑 `dev` 时默认走**真实微信登录**，需要在 `application-dev.yml` 填与小程序 AppID 匹配的有效 AppSecret；没有凭证时把 `nest.wechat.mock-enabled` 改成 `true` 走 mock。`40125 invalid appsecret` 就是 AppSecret 不匹配/已重置，需要在微信公众平台重新生成。完整步骤见 [docs/WECHAT_LOGIN.md](docs/WECHAT_LOGIN.md)。
+
 ### 平台能力
 
 JWT 双通道认证 · 统一响应结构（`Result` / `PageResult`）· 全局异常处理 · 定时任务（缴租提醒 / 超期自动退押金 / 待缴押金超时回收）· 多级权限拦截
@@ -367,7 +369,7 @@ backend/
 │       ├── interceptor/  # JWT 双通道拦截器（user / admin）
 │       ├── handler/      # 全局异常处理，统一响应结构
 │       └── config/       # WebMvc / CORS / 拦截器注册等横切配置
-├── docs/            # 实机截图（README 引用）
+├── docs/            # 实机截图 + 微信真实登录配置（WECHAT_LOGIN.md）
 ├── db/
 │   ├── schema.sql   # 唯一 DDL：24 张表（MySQL 8.0）
 │   ├── data.sql     # 演示数据（INSERT IGNORE，可重复执行）

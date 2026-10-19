@@ -47,7 +47,7 @@ nest:
   wallet:
     simulate-recharge-enabled: true
   wechat:
-    mock-enabled: true
+    mock-enabled: ${NEST_WECHAT_MOCK:true}
     mock-openid: ${NEST_WECHAT_MOCK_OPENID:nest_demo_tenant}
 
   minio:

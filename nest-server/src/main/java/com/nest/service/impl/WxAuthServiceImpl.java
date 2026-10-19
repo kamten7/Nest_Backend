@@ -98,6 +98,7 @@ public class WxAuthServiceImpl implements WxAuthService {
     private String mapError(int errcode) {
         return switch (errcode) {
             case 40029 -> "登录已过期，请重新登录";
+            case 40125 -> "微信登录配置无效，请检查 AppID/AppSecret";
             case 45011 -> "操作过于频繁，请稍后再试";
             case 40226 -> "账号存在风险，暂无法登录";
             case -1 -> "微信服务繁忙，请稍后再试";
