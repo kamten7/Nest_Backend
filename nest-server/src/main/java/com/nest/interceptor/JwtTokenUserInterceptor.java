@@ -2,20 +2,23 @@ package com.nest.interceptor;
 
 import com.nest.common.BaseContext;
 import com.nest.constant.JwtConstant;
+import com.nest.service.impl.TokenBlacklistService;
 import com.nest.utils.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-/** 租客端 JWT 拦截器。校验 Header authentication。 */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtTokenUserInterceptor implements HandlerInterceptor {
 
-    /** 请求进入 Controller 前校验租客 token，写入 BaseContext。支持可选认证路径。 */
+    private final TokenBlacklistService tokenBlacklistService;
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -29,8 +32,12 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             }
             try {
                 Claims claims = JwtUtil.parseToken(JwtConstant.userSecretKey(), optionalToken);
+                if (tokenBlacklistService.isBlacklisted(claims.getId())) {
+                    return true;
+                }
                 BaseContext.setCurrentId(claims.get("userId", Long.class));
                 BaseContext.setCurrentType(JwtConstant.TYPE_TENANT);
+                BaseContext.setCurrentRole("TENANT");
             } catch (Exception e) {
                 log.warn("租客端可选认证 token 无效: {}", e.getMessage());
             }
@@ -46,9 +53,15 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
 
         try {
             Claims claims = JwtUtil.parseToken(JwtConstant.userSecretKey(), token);
+            if (tokenBlacklistService.isBlacklisted(claims.getId())) {
+                response.setStatus(401);
+                log.warn("租客端 token 已吊销: {}", request.getRequestURI());
+                return false;
+            }
             Long tenantId = claims.get("userId", Long.class);
             BaseContext.setCurrentId(tenantId);
             BaseContext.setCurrentType(JwtConstant.TYPE_TENANT);
+            BaseContext.setCurrentRole("TENANT");
             log.debug("JWT 租客验证通过: tenantId={}", tenantId);
             return true;
         } catch (Exception e) {
@@ -58,15 +71,10 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
         }
     }
 
-    /** 可选认证路径：公开但若带 token 则解析用户身份。
-     *  - /user/review/house/**：评论列表公开，带 token 才能回显点赞状态
-     *  - /user/house/detail/**：房源详情公开，带 token 才能识别「这是租过这套房的租客」，
-     *    从而允许其查看已下架/在租中的房源（退租后回来看评论、追评） */
     private boolean isOptionalAuthPath(String uri) {
         return uri.startsWith("/user/review/house/") || uri.startsWith("/user/house/detail/");
     }
 
-    /** 请求完成清理 ThreadLocal，防止线程复用串号。 */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {

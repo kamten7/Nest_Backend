@@ -7,6 +7,7 @@ import com.nest.entity.Landlord;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.LandlordMapper;
 import com.nest.service.impl.LandlordServiceImpl;
+import com.nest.service.impl.LoginAttemptService;
 import com.nest.utils.PasswordEncoderUtil;
 import com.nest.vo.LandlordLoginVO;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,7 +31,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 房东密码 BCrypt 升级与迁移单元测试（无 Spring 容器，需手动灌入 JWT 测试密钥）。 */
 @ExtendWith(MockitoExtension.class)
 class LandlordPasswordMigrationTest {
 
@@ -44,6 +44,9 @@ class LandlordPasswordMigrationTest {
 
     @Mock
     private LandlordMapper landlordMapper;
+
+    @Mock
+    private LoginAttemptService loginAttemptService;
 
     @InjectMocks
     private LandlordServiceImpl landlordService;
@@ -104,12 +107,13 @@ class LandlordPasswordMigrationTest {
     }
 
     @Test
-    void unknownPhone_shouldThrowAccountNotFound() {
+    void unknownPhone_shouldThrowGenericPasswordErrorAndCountFailure() {
         when(landlordMapper.selectByPhone(PHONE)).thenReturn(null);
 
         assertThatThrownBy(() -> landlordService.login(dto(PHONE, RAW_PASSWORD)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessage(MessageConstant.ACCOUNT_NOT_FOUND);
+                .hasMessage(MessageConstant.PASSWORD_ERROR);
+        verify(loginAttemptService).onFailure(eq("landlord"), eq(PHONE), anyString());
     }
 
     @Test

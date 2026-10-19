@@ -13,7 +13,8 @@
   <img src="https://img.shields.io/badge/MinIO-latest-C23E00?logo=minio&logoColor=white" alt="MinIO">
   <img src="https://img.shields.io/badge/LangChain4j-1.18.1-00B265?logo=langchain&logoColor=white" alt="LangChain4j">
   <img src="https://img.shields.io/badge/Netty-4.1.118-2E2E2E?logo=netty&logoColor=white" alt="Netty">
-  <img src="https://img.shields.io/badge/tests-81_passing-3FB950?logo=junit5&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-127_passing-3FB950?logo=junit5&logoColor=white" alt="Tests">
+  <img src="https://github.com/kamten7/Nest_Backend/actions/workflows/backend-ci.yml/badge.svg" alt="Backend CI">
   <img src="https://img.shields.io/badge/modules-8-blue?logo=apachemaven&logoColor=white" alt="Modules">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
 </p>
@@ -55,12 +56,14 @@
 
 > 不是「拼 prompt → 正则抠参数 → 查库 → 拼回答」的伪 Agent，而是让模型**自己决定调不调工具、调哪个、调几次**。
 
-基于 LangChain4j 的 `AiServices` 声明式 Agent，由 **DeepSeek-V3** 驱动，注册 5 个**只读** `@Tool` 供模型自主调用：
+基于 LangChain4j 的 `AiServices` 声明式 Agent，由 **DeepSeek-V3** 驱动，注册 6 个**只读** `@Tool` 供模型自主调用：
 
 | 工具 | 作用 |
 |------|------|
 | `searchHouses(city, district, keyword)` | 按城市/区域/关键词搜索房源 |
 | `getHouseDetail(houseId)` | 查询单个房源详情（户型、朝向、要求等） |
+| `getHouseReviews(houseId, limit)` | 查询房源真实住客评价（评分、内容、时间） |
+| `searchRentalKnowledge(question, city, category, topK)` | **Agentic RAG**：检索租房知识库，返回带 `[资料N]` 编号的片段 |
 | `findNearby(lat, lng, radiusMeters)` | 按坐标查附近房源 |
 | `recommendHouses(budget, city, preferences, count)` | 按预算与偏好智能推荐 |
 
@@ -76,7 +79,7 @@ sequenceDiagram
 
   U->>C: POST /user/ai/chat/stream（SSE）
   C->>S: 传入用户自然语言消息 + 历史记忆
-  S->>M: 请求 + 4 个工具的 JSON Schema
+  S->>M: 请求 + 6 个工具的 JSON Schema
   M-->>S: 决策：调用 searchHouses("湛江市","霞山区")
   S->>T: 反射执行 @Tool
   T->>DB: 真实 SQL 查询（走 MyBatis）
@@ -96,6 +99,33 @@ sequenceDiagram
 - **记忆持久化** —— 多轮对话记忆落在 Redis，配套 `GET /user/ai/memory`（查看）与 `DELETE /user/ai/memory`（清空）便于调试与会话重置。
 
 > 关键代码：`nest-ai/src/main/java/com/nest/ai/tools/HouseSearchTools.java`、`nest-ai/src/main/java/com/nest/ai/service/impl/AiUserServiceImpl.java`
+
+#### 亮点一补充：Agentic RAG（知识库检索）
+
+押金、退租、合同、费用、流程这类问题不该让模型自由发挥。`nest-rag` 提供一条**按需触发**的知识链路：
+
+```mermaid
+graph LR
+  Q[用户问题] --> A[Agent 判断]
+  A -->|知识类| T[searchRentalKnowledge]
+  T --> V[pgvector 向量召回<br/>BGE-small-zh 512维]
+  T --> K[MySQL ngram 关键词召回]
+  V --> R[RRF 融合 / 阈值过滤]
+  K --> R
+  R --> C[带 资料N 来源的片段]
+  C --> A
+  A -->|房源类| H[原有 5 个房源工具]
+```
+
+- **文档入库**：12 篇 Markdown（流程/押金/缴租/费用/合同/预约/纠纷/防诈/湛江区域/合租/FAQ）→ 按标题与段落切 450 字、重叠 60，得到 16 个 chunk → 本地 BGE-small-zh 嵌入 → pgvector（HNSW）+ MySQL 分块表；内容 SHA-256 幂等，支持 reindex。
+- **混合检索**：向量召回 + MySQL `FULLTEXT ... WITH PARSER ngram` 关键词召回，RRF 融合后按城市/分类过滤。
+- **可引用**：工具返回 `[资料1] 《押金与退租规则》…`，System Prompt 要求回答逐条标注来源；没有资料时明确说“暂无依据”。
+- **可降级**：pgvector 不可用时 RAG 工具返回“知识库暂不可用”，找房与聊天不受影响；`nest.rag.enabled=false` 可整体关闭。
+- **可调试**：`GET /user/ai/knowledge/search?q=押金能退吗` 返回命中片段与分数；管理端 `POST /admin/knowledge/search` 同款。
+- **可评测**：25 条 golden set（20 可回答 / 5 不可回答），vector-only **hit@1 0.900、hit@3 0.950、MRR 0.917**；复现：`mvn -Prag-eval -Dtest=RagRetrievalEvalTest -Dsurefire.failIfNoSpecifiedTests=false test`。
+- **写入接口**：`POST /admin/knowledge/documents`（Markdown/TXT 上传）、`POST /admin/knowledge/documents/{id}/reindex`、`DELETE /admin/knowledge/documents/{id}`。
+
+> 关键代码：`nest-rag/src/main/java/com/nest/rag/`（入库 / 检索 / RRF）、`nest-ai/src/main/java/com/nest/ai/tools/KnowledgeTools.java`、`db/schema.sql`、`db/postgres/01_rag.sql`。
 
 ---
 
@@ -160,7 +190,7 @@ sequenceDiagram
 
 ### 🧩 亮点五：多模块单向依赖 + SPI 反向解耦
 
-- **8 个 Maven 模块**严格单向依赖，任何模块都不回指上层，从架构上杜绝循环依赖。
+- **9 个 Maven 模块**严格单向依赖，任何模块都不回指上层，从架构上杜绝循环依赖。
 - 跨模块的「反向」需求（如**钱包需要知道业务侧锁定了多少钱**）通过 **SPI** 解决：**接口声明在钱包侧、实现放在订单侧**，钱包用 `@Autowired(required = false)` 字段注入可选依赖。既不成环，也保证钱包可脱离订单独立编译与单测。
 
 ### 🔐 亮点六：零真实凭据的仓库
@@ -184,6 +214,7 @@ graph TD
 
   subgraph BIZ["业务能力层"]
     AI["nest-ai<br/>AI Agent 找房"]
+    RA["nest-rag<br/>知识库检索 / pgvector"]
     CH["nest-chat<br/>Netty 实时聊天"]
     WA["nest-wallet<br/>钱包 / 双向记账"]
     OR["nest-order<br/>租房订单 / 定时任务"]
@@ -196,24 +227,27 @@ graph TD
   end
 
   S --> AI
+  S --> RA
   S --> CH
   S --> WA
   S --> OR
   S --> MI
   AI --> PO
+  RA --> PO
   CH --> PO
   WA --> PO
   OR --> PO
   MI --> PO
-  PO --> CO
+  CO --> PO
+  AI -. "KnowledgeRetrievalService（SPI，接口在 common / 实现在 rag）" .-> RA
   OR -. "LockedAmountProvider（SPI，接口在 wallet / 实现在 order）" .-> WA
 ```
 
 **依赖方向严格单向**：`nest-common` → `nest-pojo` → 各业务模块 → `nest-server`。
 
-- `nest-ai` / `nest-minio` / `nest-chat` 只放**配置与服务**，Controller 一律收口在 `nest-server`；
+- `nest-ai` / `nest-rag` / `nest-minio` / `nest-chat` 只放**配置与服务**，Controller 一律收口在 `nest-server`；
 - `nest-wallet` / `nest-order` 则自带 Mapper / Service / Controller，是**自包含的业务模块**；
-- 唯一一处「反向依赖」通过 SPI 化解（见上文亮点五），架构上仍无环。
+- 跨模块的反向需求统一通过 SPI 化解（`KnowledgeRetrievalService`、`LockedAmountProvider`、`MessageTransport`），架构上仍无环。
 
 ### 技术栈
 
@@ -221,15 +255,16 @@ graph TD
 |------|------|------|
 | 核心框架 | Spring Boot 3.4.3 · Java 21 | IoC / 自动配置 / 内嵌 Tomcat |
 | 持久层 | MyBatis 3.0.4 · PageHelper 2.1.0 | XML 映射 + 物理分页 |
-| 数据库 | MySQL 8.0 | **19 张表**，`sql/nest_rent.sql` 一键建库 |
+| 数据库 | MySQL 8.0 | **24 张表**；`db/schema.sql` 一键建表，`db/data.sql` 演示数据 |
 | 连接池 | Druid | 数据源管理 · 连接池监控 |
 | 缓存 | Redis 7 | 地理编码缓存、AI 对话记忆持久化 |
+| 向量库 | **pgvector（PostgreSQL 16）** | 知识库向量检索；HNSW 索引，512 维 |
 | 对象存储 | MinIO | 房源图片 / 用户头像，双 bucket 分存 |
 | 认证 | JJWT 0.12.6 | JWT 双通道，租客与房东独立密钥 + 独立拦截器 |
-| AI | LangChain4j 1.18.1 | 真实 Function Calling Agent（DeepSeek-V3） |
+| AI | LangChain4j 1.18.1 | Function Calling Agent + **Agentic RAG**（本地 BGE-small-zh 中文嵌入） |
 | 实时通信 | Netty 4.1.118 | 聊天长连接，握手阶段完成 JWT 鉴权 |
 | 参数校验 | Jakarta Validation | DTO 注解 + 全局异常统一处理 |
-| 接口文档 | Knife4j（OpenAPI 3） | `http://localhost:8080/doc.html` |
+| 接口文档 | SpringDoc OpenAPI 3（Swagger UI） | `http://localhost:8080/swagger-ui/index.html` |
 | 地图服务 | OpenStreetMap + Nominatim | 免费方案，Redis 缓存 + 限速 |
 
 
@@ -312,6 +347,9 @@ backend/
 ├── nest-common/     # 技术底座：Result / PageResult / BaseContext / 常量 / 工具 / 异常
 ├── nest-pojo/       # 实体 / DTO / VO 统一收口（不随业务模块走）
 ├── nest-ai/         # AI Agent：模型配置 + 只读 @Tool 工具集 + 对话记忆
+├── nest-rag/        # Agentic RAG：文档入库 + pgvector 向量检索 + MySQL ngram 关键词 + RRF 融合
+│   ├── src/main/resources/knowledge/  # 12 篇租房知识库 Markdown
+│   └── src/main/resources/mapper/     # 知识库 Mapper XML
 ├── nest-minio/      # 对象存储：MinioClient 配置 + 上传服务（含 bucket 懒创建）
 ├── nest-chat/       # 聊天：传输层抽象 + Netty 服务端 + 入站派发 + 出站推送
 │   └── src/main/java/com/nest/chat/
@@ -322,15 +360,19 @@ backend/
 │       └── push/        # PushService 统一推送出口
 ├── nest-wallet/     # 钱包：余额 / 流水 / 双向记账 / 押金锁定 SPI 声明
 ├── nest-order/      # 租房订单：确认租房 · 缴押金 · 缴租 · 提前支付 · 退租结算
-│   └── task/        # 缴租提醒、超期自动退押金 两个定时任务
+│   └── task/        # 缴租提醒、超期自动退押金、待缴押金超时取消 3 个定时任务
 ├── nest-server/     # 唯一应用入口：Controller / Service / Mapper / 配置 / 拦截器
 │   └── src/main/java/com/nest/
 │       ├── controller/   # 租客 /user/** · 房东 /admin/**
 │       ├── interceptor/  # JWT 双通道拦截器（user / admin）
 │       ├── handler/      # 全局异常处理，统一响应结构
 │       └── config/       # WebMvc / CORS / 拦截器注册等横切配置
-├── docs/            # 技术文档 · 业务流程图 · 实机截图
-└── sql/             # nest_rent.sql：19 张表 + 房东种子数据，一份脚本建全库
+├── docs/            # 实机截图（README 引用）
+├── db/
+│   ├── schema.sql   # 唯一 DDL：24 张表（MySQL 8.0）
+│   ├── data.sql     # 演示数据（INSERT IGNORE，可重复执行）
+│   ├── image/       # 6 张演示房源图，由 minio-init 上传到 MinIO
+│   └── postgres/    # pgvector 初始化（PostgreSQL，不是 MySQL）
 ```
 
 
@@ -339,87 +381,127 @@ backend/
 
 ## 🚀 快速开始
 
-仓库里只放**模板文件**（`*-example.yml`），真实配置由你自己填、且不进仓库。
-统一规则：**复制模板 → 填值 → 删掉模板 → 启动**。
+### 方式 A：Docker 一条命令（推荐；含前端需同级目录有 frontend）
 
-### 环境要求
-
-| 依赖 | 版本 |
-|------|------|
-| JDK | 21+ |
-| Maven | 3.8+ |
-| MySQL | 8.0 |
-| Redis | 7 |
-| MinIO | 任意近期版本（可选，不跑图片上传可不配） |
-
-### 第 1 步：准备中间件（两条路，选一条）
-
-**A. 用 Docker 起中间件（推荐，一步到位）**
+环境要求：Docker Desktop / Docker Engine 24+、Compose v2。
 
 ```bash
-# 1) 复制模板为正式文件
-cp docker-compose-example.yml docker-compose.yml
+cp .env.example .env
+# 必改：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / MINIO_ROOT_PASSWORD / NEST_PGVECTOR_PASSWORD
+# 注意：MINIO_ROOT_PASSWORD 至少 8 位，否则 MinIO 容器会 exited (1)
+# 必改：NEST_JWT_ADMIN_SECRET / NEST_JWT_USER_SECRET（两个不同的 32+ 位随机串）
+# 选填：NEST_AI_USER_API_KEY（不填则 AI 找房不可用，其余功能完全正常）
 
-# 2) 打开 docker-compose.yml，把 <你的MySQL-root密码> 换成自己的密码
-#    （Redis / MinIO 用模板里的默认值即可直接跑通）
+# 只起后端 + 中间件（backend 仓单独 clone 即可）
+docker compose --profile full up -d --build
 
-# 3) 删掉模板即完成配置
-rm docker-compose-example.yml
-
-# 4) 启动容器（首次会自动执行 sql/nest_rent.sql：建好 19 张表 + 灌入房东种子数据）
-docker compose up -d
+# 需要房东 Web 界面时：把 Nest_frontend clone 到同级目录并命名为 frontend，再加 web profile
+# git clone https://github.com/kamten7/Nest_frontend.git frontend
+docker compose --profile full --profile web up -d --build
 ```
-
-> ⚠️ **改 MySQL 密码的坑**：MySQL 官方镜像**只在数据卷为空、容器首次初始化时**读取 `MYSQL_ROOT_PASSWORD`。容器若已初始化过，只改 `docker-compose.yml` 是**不生效**的，必须登录进容器执行 `ALTER USER 'root'@'%' IDENTIFIED BY '新密码';`，或 `docker compose down -v` 连数据卷一起删掉重建（会清空数据）。模板顶部有完整说明。
-
-**B. 用本机已装好的 MySQL / Redis / MinIO**
-
-不需要 `docker-compose.yml`，跳过 A，直接做第 2 步（注意端口换成 MySQL `3306` / Redis `6379` / MinIO `9000`）。
-
-### 第 2 步：配置后端
-
-```bash
-# 1) 复制模板为正式文件（application-dev.yml 已被 gitignore，不会进仓库）
-cp nest-server/src/main/resources/application-dev-example.yml \
-   nest-server/src/main/resources/application-dev.yml
-
-# 2) 填值：
-#    🔴 必填：nest.jwt.admin-secret-key / user-secret-key（随便填两个不同的 32 位随机串）
-#    🔴 必填：nest.datasource.password（走 A 方案时，要与 docker-compose.yml 的 MYSQL_ROOT_PASSWORD 一致）
-#    🟡 选填：Redis 密码、MinIO、AI Key、微信凭证（不填只影响对应功能，不影响启动）
-
-# 3) 删掉模板即完成配置
-rm nest-server/src/main/resources/application-dev-example.yml
-```
-
-> 模板里每个配置项都写了「用途 / 是否必改 / 改完要同步哪里」，照着填即可。
-
-### 第 3 步：构建并启动
-
-```bash
-mvn clean install -DskipTests
-cd nest-server && mvn spring-boot:run
-```
-
-> 需要清库重来时再手动跑（⚠️ 该脚本自带 `DROP DATABASE`，会删库重建、数据不可逆）：
->
-> ```bash
-> docker exec -i nest_mysql mysql -uroot -p'<你的密码>' --default-character-set=utf8mb4 < sql/nest_rent.sql
-> ```
 
 启动后：
 
 | 地址 | 说明 |
 |------|------|
-| `http://localhost:8080` | 后端 API |
-| `http://localhost:8080/doc.html` | 接口文档（Knife4j） |
-| `ws://localhost:8081/ws/chat/{userType}/{userId}?token=` | 聊天长连接（Netty，独立端口） |
+| `http://localhost` | 房东管理端（仅 `--profile web` 且同级目录有 `frontend` 时） |
+| `http://localhost:9090/actuator/health` | 后端健康检查（demo/prod 管理端口；本地 dev 为 8080） |
+| `http://localhost:8080/swagger-ui/index.html` | 接口文档（demo profile 开放） |
+| `ws://localhost:8081/ws/chat/{userType}/{userId}?token=` | 聊天长连接（Netty，独立端口，可直连） |
 
-### 第 4 步：跑单测（可选）
+> 演示账号：房东 `13800000001 / 123456`（`PLATFORM_ADMIN`，可进「知识库」页）、`13800000002 / 123456`（普通房东）；租客在 demo 下走手机号直登或微信 mock。
+
+首次启动时 MySQL 容器会自动执行 `db/schema.sql` 建好 **24 张表**（业务 20 + 知识库 2 + ai_trace + shedlock），再执行 `db/data.sql` 灌入 2 个房东、1 个租客、3 套房源与评价；知识库 12 篇 Markdown 由 `nest-rag` 在应用启动时自动入库。非 Docker 启动时手动按顺序导入这两个文件即可。
+compose 使用 **demo profile**：允许手机号直登与模拟充值，仅限本地演示；公网部署请使用 `prod` profile（见 `application-prod.yml`，`ProdGuard` 会在配置不安全时直接启动失败）。
+
+常用命令：
 
 ```bash
-mvn test    # 110 个单元测试
+docker compose logs -f backend
+docker compose --profile full down
+docker compose --profile full down -v   # 连数据卷一起删（会清空数据）
 ```
+
+### 方式 B：本地开发（IDE 调试）
+
+```bash
+# 1) 只起中间件：MySQL 3309 / Redis 6381 / MinIO 9012 / pgvector 5433
+docker compose up -d
+
+#    若用本机已装的 MySQL（不走 Docker），先手动建库并导入（显式 utf8mb4，避免中文乱码）：
+#    mysql -uroot -p -e "CREATE DATABASE IF NOT EXISTS nest_rent DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+#    mysql -uroot -p --default-character-set=utf8mb4 nest_rent < db/schema.sql
+#    mysql -uroot -p --default-character-set=utf8mb4 nest_rent < db/data.sql
+
+# 2) 配置后端（application-dev.yml 已被 gitignore，不会进仓库）
+cp nest-server/src/main/resources/application-dev-example.yml \
+   nest-server/src/main/resources/application-dev.yml
+# 填：nest.datasource.password + nest.jwt.admin-secret-key/user-secret-key
+
+# 3) 构建并启动
+mvn clean install -DskipTests
+cd nest-server && mvn spring-boot:run
+
+# 4) 另开终端启前端
+cd frontend && npm ci && npm run dev   # http://localhost:5173
+```
+
+> 需要彻底重建时（⚠️ 会删数据卷）：
+>
+> ```bash
+> docker compose down -v
+> docker compose --profile full up -d --build
+> ```
+>
+> 已有库只想补表/补演示数据（`schema.sql` 全是 `CREATE TABLE IF NOT EXISTS`）：
+>
+> ```bash
+> docker exec -i nest_mysql mysql -uroot -p'<你的密码>' nest_rent < db/schema.sql
+> docker exec -i nest_mysql mysql -uroot -p'<你的密码>' nest_rent < db/data.sql
+> ```
+
+### 第 3 步：跑单测
+
+```bash
+mvn test    # 127 个单元测试
+```
+
+
+---
+
+## ⚙️ 配置与部署说明
+
+| 文件 | 谁读取 | 是否进仓库 | 作用 |
+|------|--------|------------|------|
+| `.env` | Docker Compose | 否 | Compose 变量替换 + 注入容器环境变量（`NEST_*`） |
+| `application.yml` | Spring Boot | 是 | 公共配置；敏感值写成 `${NEST_...}` 占位 |
+| `application-dev.yml` | Spring Boot（dev） | 否 | 本地 IDE 的数据库口令 / AI Key / 微信凭证 |
+| `application-demo.yml` | Spring Boot（demo） | 是 | Docker 演示：允许手机号直登/模拟充值 |
+| `application-prod.yml` | Spring Boot（prod） | 是 | 生产收紧：关 mock、关 Swagger、管理端口 9090 |
+| `compose.yml` | Docker Compose | 是 | MySQL/Redis/MinIO/pgvector/后端/前端/监控编排 |
+| `Dockerfile` | Docker | 是 | 多阶段构建运行镜像，固化 JDK/依赖/启动参数 |
+
+配置链路：`.env` → 容器环境变量 → `application-*.yml` 的 `${NEST_...}` → Spring Bean。
+
+- **只跑 Docker demo**：`.env` + `compose.yml` 足够，可以不要 `application-dev.yml`。
+- **用 IDE 跑 dev**：需要 `application-dev.yml`（本地中间件地址、口令、API Key）。
+- `application.yml` 不能删：它是端口、MyBatis、Redis、AI、RAG 等公共配置的主入口。
+- `compose.yml` 是仓库内**正式编排文件**（不是示例），敏感值从 `.env` 注入；`.env.example` 才是模板。本地若还留着旧的 `docker-compose.yml`，它已被 gitignore，可删除，统一用 `compose.yml`。
+- `Dockerfile` 不是必须，但让“换一台机器/上线”不依赖手工装 JDK/Maven，且启动参数、健康检查、非 root 用户都可版本化。
+
+## 🗄️ 数据库脚本
+
+| 文件 | 数据库 | 说明 |
+|------|--------|------|
+| `db/schema.sql` | **MySQL 8.0** | 唯一 DDL：24 张表，全部 `CREATE TABLE IF NOT EXISTS`；旧库缺 `landlord.role` 会幂等补列 |
+| `db/data.sql` | **MySQL 8.0** | 唯一数据文件：2 房东 / 1 租客 / 3 房源 / 评价 / 钱包，`INSERT IGNORE` 可重复执行 |
+| `db/image/*.jpg` | **MinIO** | 6 张演示房源图，`minio-init` 上传到 `nest-rent/demo/`，`data.sql` 存 MinIO URL |
+| `db/postgres/01_rag.sql` | **PostgreSQL + pgvector** | 向量库初始化（表 + HNSW），**不是 MySQL**，不要导入 MySQL |
+
+- Docker：MySQL 容器首次初始化（数据卷为空）按 `01_schema.sql` → `02_data.sql` 自动执行；`minio-init` 会把 `db/image/` 上传到 MinIO 的 `nest-rent/demo/`。
+- 演示图片 URL 默认是 `http://localhost:9012/nest-rent/demo/...`；如果你改了 `NEST_MINIO_PORT`，同步改 `data.sql` 里的 URL 或重新导入。
+- 手动：先建库，再 `mysql -uroot -p --default-character-set=utf8mb4 nest_rent < db/schema.sql`、`< db/data.sql`。两个脚本开头都有 `SET NAMES utf8mb4`，避免中文被按 latin1 写入。
+- 已有数据卷不会重复执行 init 脚本；需要补表时手动导入 `schema.sql`（幂等）。
 
 
 ---
@@ -444,20 +526,16 @@ mvn test    # 110 个单元测试
 | `/user/chat/messages/{conversationId}` | GET | 拉取历史消息（支持离线补齐） |
 | `/user/chat/unread` | GET | 未读计数 |
 | `/admin/chat/**` | — | 房东侧同名聊天接口 |
+| `/user/ai/knowledge/search` | GET | **Agentic RAG 检索调试**（返回片段/来源/分数） |
+| `/admin/knowledge/documents` | GET / POST | 知识库文档列表 / 上传（Markdown / TXT） |
+| `/admin/knowledge/documents/{id}/reindex` | POST | 重建文档向量索引 |
+| `/admin/knowledge/documents/{id}` | DELETE | 删除知识库文档 |
+| `/admin/ai/traces` | GET | 最近 AI 轨迹（工具/token/延迟） |
+| `/admin/ai/stats` | GET | AI 聚合统计（对话数/成功率/平均延迟/token） |
+| `/user/auth/logout` · `/admin/auth/logout` | POST | 登出并把 token 的 jti 写入 Redis 黑名单 |
 | `/user/house/list` · `/detail/{id}` · `/map` | GET | 房源列表 / 详情 / 地图检索（公开） |
 
-完整接口文档：启动后访问 `http://localhost:8080/doc.html`。
-
-
----
-
-
-## 📚 项目文档
-
-| 文档 | 内容 |
-|------|------|
-| [后端核心技术手册](docs/后端核心技术手册.md) | 各模块核心技术实现详解（[PDF 版](docs/后端核心技术手册.pdf)） |
-| [业务全流程图](docs/业务全流程图.html) | 全链路业务流转可视化 |
+完整接口文档：启动后访问 `http://localhost:8080/swagger-ui/index.html`。
 
 
 ---
@@ -547,11 +625,41 @@ mvn test    # 110 个单元测试
 
 | 项目 | 说明 |
 |------|------|
-| 单元测试 | **110 个**，覆盖钱包锁定/提现、退租退款、分页边界、房源状态流转、租客资料等核心逻辑 |
-| 模块化 | 8 个 Maven 模块单向依赖，无循环依赖 |
-| 配置安全 | 敏感配置全部外置到 gitignore 的本地文件，仓库内只有占位符模板 |
+| 单元测试 | **127 个**，覆盖钱包锁定/提现、退租退款、分页边界、房源状态流转、RAG 解析/检索工具、AI 输入护栏等核心逻辑 |
+| 持续集成 | GitHub Actions：`backend-ci` 跑 `mvn verify`，PR 红灯不合入 |
+| 一键部署 | 多阶段 Dockerfile + `compose.yml`（MySQL/Redis/MinIO/后端/前端），`--profile full` 一条命令起全栈 |
+| 环境隔离 | `dev` / `demo` / `prod` 三套 profile；`ProdGuard` 在 prod 下强制关闭 mock/模拟充值/手机号直登，并校验 JWT 长度与 CORS 来源 |
+| 模块化 | 9 个 Maven 模块单向依赖，无循环依赖 |
+| 配置安全 | 敏感配置全部外置到 gitignore 的本地文件，仓库内只有 `.env.example` 与占位符模板 |
 | 异常处理 | 全局异常处理器统一收敛，响应结构一致（`Result` / `PageResult`） |
 | 边界防护 | 分页参数 clamp、状态流转条件 UPDATE 守卫、删房行级锁防竞态 |
+| 安全加固 | 登录失败限流（账号 + IP，Redis）、JWT `jti` 吊销、地图查询最多 200 点 + 半径 clamp、AI 每日配额、输入护栏、CORS 白名单、`ProdGuard` 生产启动校验 |
+| 可观测性 | Actuator health/metrics/Prometheus、AI Trace（工具/token/延迟）、`/admin/ai/stats`；`--profile obs` 起 Prometheus + Grafana |
+| 多实例 | 4 个定时任务接入 ShedLock，同一任务同一时刻只有一个实例执行 |
+
+---
+
+## 📈 可观测性
+
+- **健康检查**：`GET /actuator/health`（demo/prod 管理端口 9090；dev 为 8080）。
+- **Prometheus**：`GET /actuator/prometheus`，含 HTTP QPS/延迟、JVM、`nest_ai_requests_total`、`nest_ai_latency_seconds`。
+- **AI Trace**：每次对话异步落 `ai_trace`（工具调用、token、延迟、错误），`GET /admin/ai/traces`、`GET /admin/ai/stats` 查询；不把高基数标签塞进 Prometheus。
+- **一键起监控**：`docker compose --profile obs up -d` → Prometheus `9091`、Grafana `3000`（见 `observability/README.md`）。
+- **日志**：`logback-spring.xml` 控制台 + 按天滚动文件（100MB/文件、30 天、1GB 上限）。
+
+
+## 🗺️ 路线图（持续迭代）
+
+- [x] 三端功能闭环 + 127 个单测
+- [x] Docker 一键启动 + 三端 CI
+- [x] dev / demo / prod 配置分层 + 生产启动守卫
+- [x] SQL 建表/数据脚本（`db/schema.sql` + `db/data.sql`）+ Testcontainers 集成测试
+- [x] **Agentic RAG**：pgvector + 本地中文嵌入 + 向量/关键词混合检索 + 来源引用 + 12 篇知识库
+- [x] AI Trace / 配额 / 输入护栏 / 25 条 golden set 离线评测
+- [x] Prometheus + Grafana（`--profile obs`）
+- [x] 登录限流、JWT 吊销、地图查询上限、ShedLock
+- [ ] JMeter 压测报告 / Grafana dashboard JSON / AI Ops 前端页 / hybrid 检索评测
+
 
 
 ---

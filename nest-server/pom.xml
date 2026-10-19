@@ -29,6 +29,10 @@
         </dependency>
         <dependency>
             <groupId>com.nest</groupId>
+            <artifactId>nest-rag</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nest</groupId>
             <artifactId>nest-minio</artifactId>
         </dependency>
         <dependency>
@@ -104,7 +108,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Knife4j -->
+        <!-- SpringDoc OpenAPI / Swagger UI -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -112,6 +116,22 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- 多实例定时任务锁 -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+            <version>6.9.2</version>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
+            <version>6.9.2</version>
         </dependency>
 
         <!-- 工具 -->
@@ -135,6 +155,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -144,5 +179,16 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
         </plugins>
+
+        <!-- 让测试可以从 classpath:db/schema.sql 读取仓库根目录 db/ 下的 SQL -->
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>${project.basedir}/../db</directory>
+                <targetPath>db</targetPath>
+            </testResource>
+        </testResources>
     </build>
 </project>

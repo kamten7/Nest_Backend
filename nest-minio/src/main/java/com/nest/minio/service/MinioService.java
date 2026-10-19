@@ -20,15 +20,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** MinIO 文件上传服务：白名单后缀 + 体积上限 + 文件头校验 + 服务端强制 Content-Type。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MinioService {
 
-    /**
-     * 允许的后缀 → 服务端强制写入的 Content-Type。
-     */
     private static final Map<String, String> ALLOWED_EXTENSIONS = Map.of(
             "jpg", "image/jpeg",
             "jpeg", "image/jpeg",
@@ -42,15 +38,15 @@ public class MinioService {
     @Value("${nest.minio.endpoint}")
     private String endpoint;
 
+    @Value("${nest.minio.public-endpoint:}")
+    private String publicEndpoint;
+
     @Value("${nest.minio.bucket}")
     private String bucket;
 
     @Value("${nest.minio.avatar-bucket}")
     private String avatarBucket;
 
-    /**
-     * 单文件业务上限（默认 10MB）。
-     */
     @Value("${nest.minio.image-max-size:10485760}")
     private long maxFileSize;
 
@@ -74,7 +70,6 @@ public class MinioService {
             throw new BusinessException(MessageConstant.FILE_SIZE_EXCEED);
         }
 
-        /* 一次性读入内存（已受 maxFileSize 约束），既要校验文件头，也要把同一份数据交给 MinIO */
         byte[] data = readBytes(file);
         if (!matchesMagic(data, ext)) {
             log.warn("拒绝上传：文件内容与后缀不符, name={}, ext={}, size={}",
@@ -97,12 +92,12 @@ public class MinioService {
             throw new RuntimeException("文件上传失败", e);
         }
 
-        String url = endpoint + "/" + targetBucket + "/" + objectName;
+        String base = (publicEndpoint == null || publicEndpoint.isBlank()) ? endpoint : publicEndpoint;
+        String url = base + "/" + targetBucket + "/" + objectName;
         log.info("MinIO 上传成功: {}", url);
         return url;
     }
 
-    /** 解析并校验后缀，返回小写裸后缀（不含点）；不在白名单内直接拒绝。 */
     private String resolveExtension(String filename) {
         if (filename == null || filename.isBlank()) {
             throw new BusinessException(MessageConstant.FILE_TYPE_NOT_ALLOWED);
@@ -127,7 +122,6 @@ public class MinioService {
         }
     }
 
-    /** 文件头魔数校验：挡住「把 HTML/脚本改名成 .jpg」这类绕过。 */
     private boolean matchesMagic(byte[] data, String ext) {
         switch (ext) {
             case "jpg":

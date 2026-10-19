@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.rag.mapper.KnowledgeChunkMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO knowledge_chunk (doc_id, chunk_index, content, content_hash, embedding_id)
+        VALUES (#{docId}, #{chunkIndex}, #{content}, #{contentHash}, #{embeddingId})
+    </insert>
+
+    <delete id="deleteByDocId">
+        DELETE FROM knowledge_chunk WHERE doc_id = #{docId}
+    </delete>
+
+    <select id="selectByDocId" resultType="com.nest.entity.KnowledgeChunk">
+        SELECT * FROM knowledge_chunk WHERE doc_id = #{docId} ORDER BY chunk_index
+    </select>
+
+    <select id="countByDocId" resultType="long">
+        SELECT COUNT(*) FROM knowledge_chunk WHERE doc_id = #{docId}
+    </select>
+
+    
+    <select id="searchKeyword" resultType="com.nest.rag.domain.KnowledgeChunkHit">
+        SELECT c.id AS chunkId,
+               c.doc_id AS docId,
+               c.chunk_index AS chunkIndex,
+               c.content,
+               d.title,
+               d.category,
+               d.city,
+               d.district,
+               COALESCE(d.source_uri, CONCAT('doc-', d.id)) AS source,
+               MATCH(c.content) AGAINST (#{query} IN NATURAL LANGUAGE MODE) AS score
+        FROM knowledge_chunk c
+        JOIN knowledge_document d ON d.id = c.doc_id
+        WHERE d.status = 2
+          AND MATCH(c.content) AGAINST (#{query} IN NATURAL LANGUAGE MODE)
+        ORDER BY score DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

@@ -1,6 +1,5 @@
 package com.nest.constant;
 
-/** JWT 双通道认证常量。房东端 Header token，租客端 Header authentication。 */
 public final class JwtConstant {
 
     private JwtConstant() {}
@@ -36,4 +35,7 @@ public final class JwtConstant {
 
     public static final String TYPE_LANDLORD = "landlord";
     public static final String TYPE_TENANT = "tenant";
+
+    public static final String ISSUER = "nest";
+    public static final String AUDIENCE = "nest-client";
 }

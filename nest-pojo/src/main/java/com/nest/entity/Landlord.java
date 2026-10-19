@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/** 房东实体 */
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,6 +20,8 @@ public class Landlord {
     private String password;
     private String idNumber;
     private Integer status;
+
+    private String role;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

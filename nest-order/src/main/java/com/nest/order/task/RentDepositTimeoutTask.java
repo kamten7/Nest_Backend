@@ -4,14 +4,12 @@ import com.nest.constant.RentConstant;
 import com.nest.order.service.RentOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * 待缴押金超时自动取消任务。
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -20,6 +18,7 @@ public class RentDepositTimeoutTask {
     private final RentOrderService rentOrderService;
 
     @Scheduled(cron = "${nest.rent.deposit-timeout-cron:0 * * * * ?}")
+    @SchedulerLock(name = "rentDepositTimeoutTask", lockAtMostFor = "PT5M", lockAtLeastFor = "PT30S")
     public void cancelExpired() {
         int timeoutMinutes = RentConstant.DEPOSIT_PAY_TIMEOUT_MINUTES;
 
@@ -38,7 +37,7 @@ public class RentDepositTimeoutTask {
         int done = 0;
         for (Long id : expired) {
             try {
-                // 逐条独立事务：单笔失败不影响其它订单
+
                 if (rentOrderService.autoCancelExpiredOrder(id, timeoutMinutes)) {
                     done++;
                 }

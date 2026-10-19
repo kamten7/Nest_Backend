@@ -44,10 +44,7 @@
         WHERE id = #{id}
     </update>
 
-    <!-- 手动上下架专用：WHERE 带 status != 2（RENTED）守卫。
-         若不守卫，房东点下架与「确认租房置入在租中」并发时，会把 2 改成 0 —— 房子在租中却被标成已下架，
-         后续退租结算全部错乱。在租中状态只允许由订单模块的状态机流转（activateAfterDeposit / markAvailableIfRented）。
-         影响行数 = 0 即「已变在租中」，由 service 层据此拒绝。 -->
+    
     <update id="updateStatus">
         UPDATE house SET status = #{status}, update_time = NOW()
         WHERE id = #{id} AND status != 2
@@ -57,10 +54,7 @@
         SELECT * FROM house WHERE id = #{id}
     </select>
 
-    <!-- 加行锁读房源（删除前的租约校验专用）。「确认租房」的 markRentedIfAvailable 也要改这一行，
-         靠 InnoDB 行锁把两个事务排队：拿不到锁的一方必须等对方提交，提交后条件 UPDATE 自然看到新状态。
-         单靠 @Transactional 不够 —— 默认 RR 隔离级别下两个事务动的是不同行（house 与 rent_order），
-         「检查可删」与「真的删除」之间仍可插进一笔已提交的确认租房。 -->
+    
     <select id="selectByIdForUpdate" resultType="House">
         SELECT * FROM house WHERE id = #{id} FOR UPDATE
     </select>
@@ -91,8 +85,7 @@
             AND room_count = #{roomCount}
         </if>
         <if test="keyword != null and keyword != ''">
-            <!-- ⚠️ 不能只查 title/description：description 常为空，address（小区/门牌）才是用户口头地名的落点。
-                 把 address / city / district 一并纳入，避免"霞山区""银帆花园"这类 keyword 查空。 -->
+            
             AND (title LIKE CONCAT('%', #{keyword}, '%')
                  OR description LIKE CONCAT('%', #{keyword}, '%')
                  OR address LIKE CONCAT('%', #{keyword}, '%')
@@ -115,7 +108,7 @@
         UPDATE house SET view_count = view_count + 1 WHERE id = #{id}
     </update>
 
-    <!-- ==================== 地图查询 ==================== -->
+    
 
     <select id="selectByBounds" resultType="com.nest.vo.HouseMarkerVO">
         SELECT h.id, h.title, h.price, h.latitude, h.longitude,
@@ -125,6 +118,8 @@
         WHERE h.status = 1
           AND h.latitude BETWEEN #{minLat} AND #{maxLat}
           AND h.longitude BETWEEN #{minLng} AND #{maxLng}
+        ORDER BY h.id
+        LIMIT #{limit}
     </select>
 
     <select id="selectByLandlordMap" resultType="com.nest.vo.HouseMarkerVO">

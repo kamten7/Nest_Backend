@@ -57,6 +57,13 @@
         <!-- API 文档注解 -->
 
 
+        <!-- 定时任务分布式锁注解 -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+            <version>6.9.2</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

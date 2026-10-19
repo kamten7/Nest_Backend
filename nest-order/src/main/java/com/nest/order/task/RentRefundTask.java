@@ -4,13 +4,13 @@ import com.nest.constant.RentConstant;
 import com.nest.order.service.RentOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
 
-/** 押金自动退还任务。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -19,6 +19,7 @@ public class RentRefundTask {
     private final RentOrderService rentOrderService;
 
     @Scheduled(cron = "${nest.rent.refund-cron:0 0 11 * * ?}")
+    @SchedulerLock(name = "rentRefundTask", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void refund() {
         LocalDate today = LocalDate.now();
         List<Long> dueIds = rentOrderService.listAutoRefundDueIds(today);

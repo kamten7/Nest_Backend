@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.mapper.AiTraceMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_trace
+            (trace_id, tenant_id, channel, question_preview, tool_calls, retrieved_docs,
+             latency_ms, prompt_tokens, completion_tokens, model, success, error_code)
+        VALUES
+            (#{traceId}, #{tenantId}, #{channel}, #{questionPreview}, #{toolCalls}, #{retrievedDocs},
+             #{latencyMs}, #{promptTokens}, #{completionTokens}, #{model}, #{success}, #{errorCode})
+    </insert>
+
+    <select id="selectRecent" resultType="com.nest.entity.AiTrace">
+        SELECT * FROM ai_trace ORDER BY id DESC LIMIT #{limit}
+    </select>
+
+    <select id="statsSince" resultType="java.util.Map">
+        SELECT COUNT(*)                                        AS total,
+               COALESCE(SUM(success), 0)                       AS successCount,
+               COALESCE(ROUND(AVG(latency_ms)), 0)             AS avgLatencyMs,
+               COALESCE(SUM(prompt_tokens), 0)                 AS promptTokens,
+               COALESCE(SUM(completion_tokens), 0)             AS completionTokens
+        FROM ai_trace
+        WHERE create_time &gt;= #{since}
+    </select>
+
+</mapper>

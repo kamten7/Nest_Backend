@@ -25,7 +25,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
-/** 租客服务实现。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,14 +36,11 @@ public class TenantServiceImpl implements TenantService {
     private final WxAuthService wxAuthService;
     private final WeChatProperties weChatProperties;
     private final MinioService minioService;
+    private final LoginAttemptService loginAttemptService;
 
-    /**
-     * 手机号直登开关（默认关闭）。
-     */
     @Value("${nest.auth.phone-login-enabled:false}")
     private boolean phoneLoginEnabled;
 
-    /** 租客登录（支持微信 code 或手机号）。 */
     @Override
     public TenantLoginVO login(TenantLoginDTO dto) {
         Tenant tenant;
@@ -71,15 +67,19 @@ public class TenantServiceImpl implements TenantService {
                 }
             }
         } else if (dto.getPhone() != null && !dto.getPhone().isEmpty()) {
-            // 手机号直登没有任何凭据校验，必须显式开启（仅限本地/测试环境）
+
             if (!phoneLoginEnabled) {
                 log.warn("拒绝手机号直登：nest.auth.phone-login-enabled=false");
                 throw new BusinessException(MessageConstant.PHONE_LOGIN_DISABLED);
             }
+            String ip = LoginAttemptService.currentIp();
+            loginAttemptService.checkAllowed("tenant", dto.getPhone(), ip);
             tenant = tenantMapper.selectByPhone(dto.getPhone());
             if (tenant == null) {
+                loginAttemptService.onFailure("tenant", dto.getPhone(), ip);
                 throw new BusinessException("该手机号尚未注册，请先注册");
             }
+            loginAttemptService.onSuccess("tenant", dto.getPhone());
         } else {
             throw new BusinessException("请提供登录凭证（微信 code 或手机号）");
         }
@@ -100,10 +100,9 @@ public class TenantServiceImpl implements TenantService {
                 .build();
     }
 
-    /** 租客注册（手机号）。 */
     @Override
     public TenantLoginVO register(TenantRegisterDTO dto) {
-        // 注册同样只认手机号、不要验证码 ⇒ 生产环境一并关闭（届时走微信登录自动建号）
+
         if (!phoneLoginEnabled) {
             log.warn("拒绝手机号注册：nest.auth.phone-login-enabled=false");
             throw new BusinessException(MessageConstant.PHONE_LOGIN_DISABLED);
@@ -139,13 +138,11 @@ public class TenantServiceImpl implements TenantService {
                 .build();
     }
 
-    /** 查询当前登录租客的个人信息。 */
     @Override
     public TenantProfileVO getProfile() {
         return toProfileVO(requireCurrentTenant());
     }
 
-    /** 更新租客个人信息：仅更新传了值的字段，手机号只校验格式与唯一性。 */
     @Override
     public void updateProfile(TenantProfileDTO dto) {
         Tenant tenant = requireCurrentTenant();
@@ -178,7 +175,6 @@ public class TenantServiceImpl implements TenantService {
         log.info("租客个人信息已更新: id={}, phone={}, nickname={}, gender={}", currentId, phone, nickname, dto.getGender());
     }
 
-    /** 上传头像到「头像专用 bucket」并直接写回租客资料，返回头像 URL。 */
     @Override
     public String uploadAvatar(MultipartFile file) {
         if (file == null || file.isEmpty()) {

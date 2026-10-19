@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nest.rag.mapper.KnowledgeDocumentMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO knowledge_document
+            (title, category, source_type, source_uri, city, district,
+             status, chunk_count, content_hash, version, content, created_by)
+        VALUES
+            (#{title}, #{category}, #{sourceType}, #{sourceUri}, #{city}, #{district},
+             #{status}, #{chunkCount}, #{contentHash}, #{version}, #{content}, #{createdBy})
+    </insert>
+
+    <select id="selectById" resultType="com.nest.entity.KnowledgeDocument">
+        SELECT * FROM knowledge_document WHERE id = #{id}
+    </select>
+
+    <select id="selectByHash" resultType="com.nest.entity.KnowledgeDocument">
+        SELECT * FROM knowledge_document WHERE content_hash = #{contentHash} LIMIT 1
+    </select>
+
+    <select id="selectPage" resultType="com.nest.entity.KnowledgeDocument">
+        SELECT id, title, category, source_type, source_uri, city, district,
+               status, chunk_count, content_hash, version, error_msg, created_by, create_time, update_time
+        FROM knowledge_document
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM knowledge_document
+    </select>
+
+    <update id="updateIndexStatus">
+        UPDATE knowledge_document
+        SET status = #{status},
+            chunk_count = #{chunkCount},
+            error_msg = #{errorMsg},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM knowledge_document WHERE id = #{id}
+    </delete>
+
+</mapper>

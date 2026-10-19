@@ -5,6 +5,7 @@ import com.nest.entity.NotifyTask;
 import com.nest.mapper.NotifyTaskMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ public class NotifyRetryTask {
     private final PushService pushService;
 
     @Scheduled(fixedDelay = 30000)
+    @SchedulerLock(name = "notifyRetryTask", lockAtMostFor = "PT2M", lockAtLeastFor = "PT10S")
     public void retryPending() {
         List<NotifyTask> pending;
         try {

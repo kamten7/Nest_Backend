@@ -18,8 +18,9 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO landlord (name, phone, password, status, create_time, update_time)
-        VALUES (#{name}, #{phone}, #{password}, #{status}, NOW(), NOW())
+        INSERT INTO landlord (name, phone, password, status, role, create_time, update_time)
+        VALUES (#{name}, #{phone}, #{password}, #{status},
+                COALESCE(#{role}, 'LANDLORD'), NOW(), NOW())
     </insert>
 
     <update id="updatePassword">

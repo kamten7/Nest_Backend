@@ -25,8 +25,8 @@
 #   🟢 默认即可：minio / websocket / cron 等，本地联调无需改动
 #
 # 【端口按你的中间件来源二选一】本模板默认按下面「Docker 那套」填好
-#     · 用 docker-compose 起中间件（见 docker-compose-example.yml）
-#         → MySQL 3309 / Redis 6381 / MinIO 9012
+#     · 用 Docker 起中间件（见 compose.yml + .env.example）
+#         → MySQL 3309 / Redis 6381 / MinIO 9012 / pgvector 5433
 #     · 用本机自己装的中间件
 #         → MySQL 3306 / Redis 6379 / MinIO 9000
 # ============================================================================
@@ -49,10 +49,10 @@ nest:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver   # MySQL 8 固定用这个驱动类
     host: localhost                                # 本机容器/本机 MySQL 都是 localhost
-    port: 3309                                     # 🔴 与 docker-compose.yml 里的端口映射左侧保持一致（本机自装 MySQL 通常填 3306）
+    port: 3309                                     # 🔴 与 compose.yml 里的端口映射左侧保持一致（本机自装 MySQL 通常填 3306）
     database: nest_rent                            # 库名，与 docker-compose 的 MYSQL_DATABASE 一致
     username: root
-    # 🔴 必须与 docker-compose.yml 的 MYSQL_ROOT_PASSWORD 完全一致，否则报 Access denied
+    # 🔴 必须与 compose.yml 的 MYSQL_ROOT_PASSWORD 完全一致，否则报 Access denied
     password: "<你的MySQL-root密码>"
 
   # ===== MinIO 对象存储（房源图片 / 用户头像，双 bucket） =====
@@ -60,8 +60,9 @@ nest:
   # docker-compose 的 minio-init 会自动建好它们并设为匿名可读，前端 <img> 才能直接渲染。
   minio:
     endpoint: http://localhost:9012     # 本机自装 MinIO 通常为 http://localhost:9000
-    access-key: "minioadmin"            # 与 docker-compose.yml 的 MINIO_ROOT_USER 一致
-    secret-key: "minioadmin"            # 与 docker-compose.yml 的 MINIO_ROOT_PASSWORD 一致
+    public-endpoint: http://localhost:9012  # 浏览器可访问地址（容器部署时与 endpoint 不同）
+    access-key: "minioadmin"            # 与 compose.yml 的 MINIO_ROOT_USER 一致
+    secret-key: "minioadmin"            # 与 compose.yml 的 MINIO_ROOT_PASSWORD 一致
     bucket: nest-rent                   # 房源图片桶，不存在时会自动创建
     avatar-bucket: nest-avatar          # 用户头像专用桶（与通用桶分离存放）
 
@@ -117,16 +118,26 @@ nest:
     netty:
       port: 8081
 
-  # ===== 电子合同模板路径 =====
-  # 合同用模板文件渲染。classpath: 指打包进 jar 的资源目录，一般不用改。
-  contract:
-    template-path: classpath:contract-templates/
+  # ===== CORS（前端来源，逗号分隔） =====
+  cors:
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+
+  # ===== Agentic RAG（可选：需要 pgvector） =====
+  # 不跑知识库时保持 enabled: false，Agent 的 searchRentalKnowledge 会返回“知识库未启用”。
+  # 想本地跑 RAG：docker compose up -d pgvector，然后按下面对齐端口/口令。
+  rag:
+    enabled: false
+    ingest-on-startup: false
+    vector-store:
+      host: localhost
+      port: 5433
+      database: nest_rag
+      username: nest
+      password: "<NEST_PGVECTOR_PASSWORD>"
 
   # ===== 定时任务 cron（6 段式：秒 分 时 日 月 周） =====
   # Spring 的 @Scheduled 用 6 段 cron，比 Linux 的 5 段多最前面一个「秒」。
   # 下面几个都是「每天定点跑一次」，本地联调按需调整时间即可。
-  inspection:
-    reminder-cron: 0 0 9 * * ?          # 每天 09:00 巡检提醒
   rent:
     reminder-cron: 0 0 10 * * ?         # 每天 10:00 扫「快到缴租日」的订单并提醒租客
     refund-cron: 0 0 11 * * ?           # 每天 11:00 扫「超期未结算」的退租，自动退还押金
@@ -138,7 +149,7 @@ spring:
     redis:
       host: 127.0.0.1
       port: 6381                        # 本机自装 Redis 通常为 6379
-      password: "<你的Redis密码>"        # 与 docker-compose.yml 里 --requirepass 保持一致，否则连不上
+      password: "<你的Redis密码>"        # 与 compose.yml 里 --requirepass 保持一致，否则连不上
       timeout: 1000                     # 连接/读取超时（毫秒）
       lettuce:
         pool:
@@ -148,7 +159,7 @@ spring:
 
 # ============================================================================
 # 小结：本地从零跑起来，最少只要三步
-#   1. cp docker-compose-example.yml docker-compose.yml && 填 MySQL 密码 && docker compose up -d
+#   1. cp .env.example .env && 填 MySQL/Redis/MinIO/pgvector 口令 && docker compose up -d
 #   2. cp application-dev-example.yml application-dev.yml
 #      && 把 nest.datasource.password 填成上面同一个密码 && 两把 JWT 密钥随便填两个不同的随机串
 #   3. 启动后端（默认 spring.profiles.active=dev），本地登录用手机号直登 + 模拟充值即可

@@ -8,6 +8,7 @@ import com.nest.exception.BusinessException;
 import com.nest.mapper.TenantMapper;
 import com.nest.minio.service.MinioService;
 import com.nest.service.impl.TenantServiceImpl;
+import com.nest.service.impl.LoginAttemptService;
 import com.nest.vo.TenantProfileVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 租客个人信息（查询/更新/头像）服务单元测试（字段可选，只更新传值字段）。 */
 @ExtendWith(MockitoExtension.class)
 class TenantProfileTest {
 
@@ -42,6 +42,9 @@ class TenantProfileTest {
 
     @Mock
     private MinioService minioService;
+
+    @Mock
+    private LoginAttemptService loginAttemptService;
 
     @InjectMocks
     private TenantServiceImpl tenantService;

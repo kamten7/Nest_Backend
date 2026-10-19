@@ -1,5 +1,6 @@
 package com.nest.utils;
 
+import com.nest.constant.JwtConstant;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -9,8 +10,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
-/** JWT 工具类：生成、解析、校验 Token。SHA-256 哈希确保密钥 ≥ 256 位。 */
 public final class JwtUtil {
 
     private JwtUtil() {}
@@ -30,6 +31,9 @@ public final class JwtUtil {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .claims(claims)
+                .issuer(JwtConstant.ISSUER)
+                .audience().single(JwtConstant.AUDIENCE)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + ttlMillis))
                 .signWith(key)
@@ -40,6 +44,8 @@ public final class JwtUtil {
         SecretKey key = toSecretKey(secret);
         return Jwts.parser()
                 .verifyWith(key)
+                .requireIssuer(JwtConstant.ISSUER)
+                .requireAudience(JwtConstant.AUDIENCE)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

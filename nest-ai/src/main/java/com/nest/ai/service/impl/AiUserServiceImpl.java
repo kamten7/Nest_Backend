@@ -2,9 +2,13 @@ package com.nest.ai.service.impl;
 
 import com.nest.ai.config.NestAiAgent.TenantAiAssistant;
 import com.nest.ai.service.AiUserService;
+import com.nest.ai.support.AiInputGuard;
+import com.nest.ai.support.AiTraceCollector;
 import com.nest.common.BaseContext;
 import com.nest.constant.MessageConstant;
 import com.nest.exception.NotLoginException;
+import com.nest.service.AiQuotaService;
+import com.nest.service.AiTraceStore;
 import com.nest.vo.AiMessageVO;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -15,7 +19,10 @@ import jakarta.servlet.AsyncContext;
 import jakarta.servlet.AsyncEvent;
 import jakarta.servlet.AsyncListener;
 import jakarta.servlet.http.HttpServletResponse;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -23,33 +30,39 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** AI 找房服务实现 —— SSE 流式输出。 */
 @Slf4j
 @Service
 public class AiUserServiceImpl implements AiUserService {
 
-    /** 对话历史里的角色标识，与小程序气泡的 role 对齐 */
     private static final String ROLE_USER = "user";
     private static final String ROLE_AI = "ai";
 
     private final TenantAiAssistant tenantAiAssistant;
 
-    /** LangChain4j 的记忆存储抽象；运行时由 nest-server 的 RedisChatMemoryStore 实现 */
     private final ChatMemoryStore chatMemoryStore;
 
-    /** 同租户对话串行信号量：记忆读改写非原子，并发多路流会互相覆盖；tryAcquire 失败直接提示稍后再试。
-     *  用 Semaphore 而非 ReentrantLock：终态收口(finish)由模型回调线程或容器超时线程执行，
-     *  与获取许可的请求线程不是同一个，ReentrantLock 非持有者 unlock 会抛 IllegalMonitorStateException。
-     */
     private final Map<Long, Semaphore> tenantChatLocks = Caffeine.newBuilder()
             .expireAfterAccess(Duration.ofHours(1))
             .<Long, Semaphore>build()
             .asMap();
+
+    @Autowired(required = false)
+    private AiTraceStore aiTraceStore;
+
+    @Autowired(required = false)
+    private AiQuotaService aiQuotaService;
+
+    @Value("${nest.ai.quota.daily-user-requests:100}")
+    private int dailyUserQuota;
+
+    @Autowired(required = false)
+    private MeterRegistry meterRegistry;
 
     public AiUserServiceImpl(TenantAiAssistant tenantAiAssistant, ChatMemoryStore chatMemoryStore) {
         this.tenantAiAssistant = tenantAiAssistant;
@@ -71,8 +84,20 @@ public class AiUserServiceImpl implements AiUserService {
             return;
         }
 
-        if (message == null || message.isBlank()) {
+        String safeMessage = AiInputGuard.sanitize(message);
+        if (safeMessage.isBlank()) {
             writeSSEAndClose(response, "data: 请告诉我你想找什么样的房子\n\n", "data: [DONE]\n\n");
+            asyncContext.complete();
+            return;
+        }
+        if (AiInputGuard.looksLikePromptInjection(safeMessage)) {
+            log.warn("AI 输入命中提示注入模式，已拒绝 [tenantId={}]", tenantId);
+            writeSSEAndClose(response, "data:" + MessageConstant.AI_INPUT_INVALID + "\n\n", "data: [DONE]\n\n");
+            asyncContext.complete();
+            return;
+        }
+        if (aiQuotaService != null && !aiQuotaService.tryAcquire(tenantId, dailyUserQuota)) {
+            writeSSEAndClose(response, "data:" + MessageConstant.AI_QUOTA_EXCEEDED + "\n\n", "data: [DONE]\n\n");
             asyncContext.complete();
             return;
         }
@@ -84,8 +109,13 @@ public class AiUserServiceImpl implements AiUserService {
             return;
         }
 
-        log.info("AI 找房对话 [tenantId={}]: {}", tenantId,
-                message.length() > 50 ? message.substring(0, 50) + "..." : message);
+        String traceId = UUID.randomUUID().toString();
+        response.setHeader("X-Trace-Id", traceId);
+        AiTraceCollector trace = new AiTraceCollector(traceId, tenantId, "user", safeMessage);
+        long startNanos = System.nanoTime();
+
+        log.info("AI 找房对话 [tenantId={}, traceId={}]: {}", tenantId, traceId,
+                safeMessage.length() > 50 ? safeMessage.substring(0, 50) + "..." : safeMessage);
 
         PrintWriter writer;
         try {
@@ -101,12 +131,14 @@ public class AiUserServiceImpl implements AiUserService {
         asyncContext.addListener(new AsyncListener() {
             @Override
             public void onTimeout(AsyncEvent event) {
-                finish(finished, writer, asyncContext, lock, true);
+                trace.onError(new IllegalStateException("async timeout"));
+                finish(finished, writer, asyncContext, lock, true, trace, startNanos);
             }
 
             @Override
             public void onError(AsyncEvent event) {
-                finish(finished, writer, asyncContext, lock, true);
+                trace.onError(new IllegalStateException("async error"));
+                finish(finished, writer, asyncContext, lock, true, trace, startNanos);
             }
 
             @Override
@@ -119,27 +151,32 @@ public class AiUserServiceImpl implements AiUserService {
         });
 
         try {
-            TokenStream tokenStream = tenantAiAssistant.chat(tenantId, message);
+            TokenStream tokenStream = tenantAiAssistant.chat(tenantId, safeMessage);
             tokenStream.onPartialResponse(token -> {
                         if (!finished.get()) {
                             writeSSE(writer, token);
                         }
                     })
-                    .onCompleteResponse(resp -> finish(finished, writer, asyncContext, lock, false))
+                    .onToolExecuted(trace::onToolExecuted)
+                    .onCompleteResponse(resp -> {
+                        trace.onResponse(resp);
+                        finish(finished, writer, asyncContext, lock, false, trace, startNanos);
+                    })
                     .onError(error -> {
                         log.error("AI 对话失败 [tenantId={}]", tenantId, error);
-                        finish(finished, writer, asyncContext, lock, true);
+                        trace.onError(error);
+                        finish(finished, writer, asyncContext, lock, true, trace, startNanos);
                     })
                     .start();
         } catch (Exception e) {
             log.error("AI 对话异常 [tenantId={}]", tenantId, e);
-            finish(finished, writer, asyncContext, lock, true);
+            trace.onError(e);
+            finish(finished, writer, asyncContext, lock, true, trace, startNanos);
         }
     }
 
-    /** 终态收口：写结束帧、complete、放锁全程只执行一次（容器超时/断开事件与模型回调竞争同一标志位）。 */
     private void finish(AtomicBoolean finished, PrintWriter writer, AsyncContext asyncContext,
-                        Semaphore lock, boolean asError) {
+                        Semaphore lock, boolean asError, AiTraceCollector trace, long startNanos) {
         if (!finished.compareAndSet(false, true)) {
             return;
         }
@@ -155,12 +192,37 @@ public class AiUserServiceImpl implements AiUserService {
             asyncContext.complete();
         } catch (Exception ignored) {
         }
+        persistTrace(trace, startNanos, !asError);
+        recordMetrics(!asError, System.nanoTime() - startNanos);
         lock.release();
     }
 
-    /**
-     * 读取对话历史：只回纯文本的「用户 / 助手」消息，工具调用的中间消息直接丢弃
-     */
+    private void recordMetrics(boolean success, long latencyNanos) {
+        if (meterRegistry == null) {
+            return;
+        }
+        try {
+            meterRegistry.counter("nest.ai.requests", "channel", "user", "outcome", success ? "success" : "error")
+                    .increment();
+            meterRegistry.timer("nest.ai.latency", "channel", "user")
+                    .record(java.time.Duration.ofNanos(latencyNanos));
+        } catch (Exception e) {
+            log.debug("AI 指标记录失败: {}", e.getMessage());
+        }
+    }
+
+    private void persistTrace(AiTraceCollector trace, long startNanos, boolean success) {
+        if (trace == null || aiTraceStore == null) {
+            return;
+        }
+        try {
+            long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
+            aiTraceStore.save(trace.toRecord(success, latencyMs));
+        } catch (Exception e) {
+            log.warn("AI 轨迹提交失败: {}", e.getMessage());
+        }
+    }
+
     @Override
     public List<AiMessageVO> getHistory() {
         Long tenantId = BaseContext.getCurrentId();
@@ -177,15 +239,12 @@ public class AiUserServiceImpl implements AiUserService {
             }
             return history;
         } catch (Exception e) {
-            // 与 RedisChatMemoryStore.getMessages 的降级方向保持一致：读失败只当没有历史
+
             log.warn("读取 AI 对话历史失败（降级为空）[tenantId={}]: {}", tenantId, e.getMessage());
             return new ArrayList<>();
         }
     }
 
-    /**
-     * 清空对话：删除该租客的记忆 key。
-     */
     @Override
     public void clearMemory() {
         Long tenantId = BaseContext.getCurrentId();
@@ -196,9 +255,6 @@ public class AiUserServiceImpl implements AiUserService {
         log.info("AI 对话记忆已清空 [tenantId={}]", tenantId);
     }
 
-    /**
-     * 把 LangChain4j 的消息映射成前端气泡。
-     */
     private AiMessageVO toVO(ChatMessage message) {
         if (message instanceof UserMessage userMessage) {
             return userMessage.hasSingleText()
@@ -206,7 +262,7 @@ public class AiUserServiceImpl implements AiUserService {
                     : null;
         }
         if (message instanceof AiMessage aiMessage) {
-            // AiMessage.text() 只是读字段，无正文时为 null（不会抛异常）
+
             String text = aiMessage.text();
             return (text != null && !text.isBlank()) ? new AiMessageVO(ROLE_AI, text) : null;
         }

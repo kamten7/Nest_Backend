@@ -20,6 +20,7 @@
         <module>nest-common</module>
         <module>nest-pojo</module>
         <module>nest-ai</module>
+        <module>nest-rag</module>
         <module>nest-minio</module>
         <module>nest-chat</module>
         <module>nest-wallet</module>
@@ -41,6 +42,8 @@
         <poi>5.4.0</poi>
         <langchain4j>1.18.1</langchain4j>
         <netty>4.1.118.Final</netty>
+        <!-- 默认排除 RAG 评测（会加载 ONNX 模型，较慢）；mvn -Prag-eval 单独跑 -->
+        <rag.eval.excludedGroups>rag-eval</rag.eval.excludedGroups>
     </properties>
 
     <dependencyManagement>
@@ -59,6 +62,11 @@
             <dependency>
                 <groupId>com.nest</groupId>
                 <artifactId>nest-ai</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nest</groupId>
+                <artifactId>nest-rag</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -210,6 +218,65 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+
+            <!-- 单元测试 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                    <excludedGroups>${rag.eval.excludedGroups}</excludedGroups>
+                </configuration>
+            </plugin>
+
+            <!-- 集成测试：*IT.java，在 mvn verify 阶段执行；无 Docker 时测试内部自动跳过 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                </configuration>
+            </plugin>
+
+            <!-- 覆盖率：mvn verify 后 target/site/jacoco/index.html -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- RAG 离线评测：mvn -Prag-eval -Dtest=RagRetrievalEvalTest test -->
+        <profile>
+            <id>rag-eval</id>
+            <properties>
+                <rag.eval.excludedGroups></rag.eval.excludedGroups>
+            </properties>
+        </profile>
+    </profiles>
 </project>

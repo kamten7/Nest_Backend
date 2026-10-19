@@ -4,12 +4,12 @@ import com.nest.constant.RentConstant;
 import com.nest.order.service.RentOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 
-/** 房租到期提醒任务。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -18,6 +18,7 @@ public class RentReminderTask {
     private final RentOrderService rentOrderService;
 
     @Scheduled(cron = "${nest.rent.reminder-cron:0 0 10 * * ?}")
+    @SchedulerLock(name = "rentReminderTask", lockAtMostFor = "PT10M", lockAtLeastFor = "PT30S")
     public void remind() {
         LocalDate today = LocalDate.now();
         try {

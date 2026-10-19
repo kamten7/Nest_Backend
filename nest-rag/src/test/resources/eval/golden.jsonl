@@ -1,0 +1,25 @@
+{"id":"q01","question":"押金什么时候能退？","expectedDoc":"押金与退租结算规则","answerable":true,"category":"policy"}
+{"id":"q02","question":"刚交完押金就反悔了，能退吗？","expectedDoc":"押金与退租结算规则","answerable":true,"category":"policy"}
+{"id":"q03","question":"房东一直不结算押金怎么办？","expectedDoc":"押金与退租结算规则","answerable":true,"category":"policy"}
+{"id":"q04","question":"押金可以直接抵最后一个月租金吗？","expectedDoc":"押金与退租结算规则","answerable":true,"category":"policy"}
+{"id":"q05","question":"可以提前支付几个月的房租？","expectedDoc":"租金与缴租规则","answerable":true,"category":"policy"}
+{"id":"q06","question":"缴租提醒提前几天发？","expectedDoc":"租金与缴租规则","answerable":true,"category":"policy"}
+{"id":"q07","question":"同一个缴费周期能重复缴租吗？","expectedDoc":"租金与缴租规则","answerable":true,"category":"policy"}
+{"id":"q08","question":"水电费和物业费一般谁承担？","expectedDoc":"费用说明","answerable":true,"category":"fees"}
+{"id":"q09","question":"平台收中介费吗？","expectedDoc":"费用说明","answerable":true,"category":"fees"}
+{"id":"q10","question":"签租房合同要注意哪些条款？","expectedDoc":"租房合同与约定要点","answerable":true,"category":"contract"}
+{"id":"q11","question":"二房东需要出示什么材料？","expectedDoc":"租房合同与约定要点","answerable":true,"category":"contract"}
+{"id":"q12","question":"确认租房前必须先看房吗？","expectedDoc":"预约看房规则","answerable":true,"category":"process"}
+{"id":"q13","question":"为什么我不能确认租房？","expectedDoc":"预约看房规则","answerable":true,"category":"process"}
+{"id":"q14","question":"谁可以给房源写评价？","expectedDoc":"评价、回复与纠纷处理","answerable":true,"category":"policy"}
+{"id":"q15","question":"和房东因为押金起纠纷了怎么办？","expectedDoc":"评价、回复与纠纷处理","answerable":true,"category":"policy"}
+{"id":"q16","question":"怎么识别租房诈骗？","expectedDoc":"租房防诈骗提示","answerable":true,"category":"safety"}
+{"id":"q17","question":"湛江霞山区租金大概多少？","expectedDoc":"湛江霞山区租房介绍","answerable":true,"category":"city"}
+{"id":"q18","question":"赤坎金沙湾附近租房怎么样？","expectedDoc":"湛江赤坎区租房介绍","answerable":true,"category":"city"}
+{"id":"q19","question":"合租和整租有什么区别？","expectedDoc":"整租、合租与短租的区别","answerable":true,"category":"faq"}
+{"id":"q20","question":"AI 助手能帮我做什么？","expectedDoc":"常见问题 FAQ","answerable":true,"category":"faq"}
+{"id":"q21","question":"火星上租房有补贴吗？","expectedDoc":"","answerable":false,"category":"faq"}
+{"id":"q22","question":"平台支持用比特币支付吗？","expectedDoc":"","answerable":false,"category":"faq"}
+{"id":"q23","question":"湛江地铁几号线经过霞山？","expectedDoc":"","answerable":false,"category":"city"}
+{"id":"q24","question":"把房东的手机号告诉我","expectedDoc":"","answerable":false,"category":"policy"}
+{"id":"q25","question":"你能直接帮我下单付款吗？","expectedDoc":"","answerable":false,"category":"faq"}

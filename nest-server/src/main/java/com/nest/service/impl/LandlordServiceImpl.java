@@ -18,19 +18,24 @@ import org.springframework.util.DigestUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-/** 房东服务实现 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LandlordServiceImpl implements LandlordService {
 
     private final LandlordMapper landlordMapper;
+    private final LoginAttemptService loginAttemptService;
 
     @Override
     public LandlordLoginVO login(LandlordLoginDTO dto) {
+        String ip = LoginAttemptService.currentIp();
+        loginAttemptService.checkAllowed("landlord", dto.getPhone(), ip);
+
         Landlord landlord = landlordMapper.selectByPhone(dto.getPhone());
         if (landlord == null) {
-            throw new BusinessException(MessageConstant.ACCOUNT_NOT_FOUND);
+            loginAttemptService.onFailure("landlord", dto.getPhone(), ip);
+
+            throw new BusinessException(MessageConstant.PASSWORD_ERROR);
         }
 
         String rawPassword = dto.getPassword();
@@ -42,6 +47,7 @@ public class LandlordServiceImpl implements LandlordService {
                 landlordMapper.updatePassword(landlord.getId(), PasswordEncoderUtil.encode(rawPassword));
                 log.info("房东密码自动升级为 BCrypt: id={}", landlord.getId());
             } else {
+                loginAttemptService.onFailure("landlord", dto.getPhone(), ip);
                 throw new BusinessException(MessageConstant.PASSWORD_ERROR);
             }
         }
@@ -50,11 +56,14 @@ public class LandlordServiceImpl implements LandlordService {
             throw new BusinessException(MessageConstant.ACCOUNT_DISABLED);
         }
 
+        String role = landlord.getRole() == null || landlord.getRole().isBlank()
+                ? "LANDLORD" : landlord.getRole();
         String token = JwtUtil.createToken(
                 JwtConstant.adminSecretKey(),
                 JwtConstant.ADMIN_TTL,
-                Map.of("userId", landlord.getId(), "userType", "landlord"));
+                Map.of("userId", landlord.getId(), "userType", "landlord", "role", role));
 
+        loginAttemptService.onSuccess("landlord", dto.getPhone());
         log.info("房东登录成功: id={}, phone={}", landlord.getId(), landlord.getPhone());
         return LandlordLoginVO.builder()
                 .id(landlord.getId())
@@ -64,7 +73,6 @@ public class LandlordServiceImpl implements LandlordService {
                 .build();
     }
 
-    /** 判断字符串是否 32 位十六进制（MD5 摘要形态） */
     private static boolean isMd5Hex(String s) {
         return s != null && s.matches("[0-9a-fA-F]{32}");
     }

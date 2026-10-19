@@ -1,0 +1,119 @@
+# ============================================================================
+# 生产环境配置（profile=prod）
+# ----------------------------------------------------------------------------
+# 设计原则：默认收紧。任何“本地方便”的开关在这里都必须关闭；
+# 缺少关键配置时由 ProdGuard 直接 fail-fast，而不是带着弱配置上线。
+# ============================================================================
+
+server:
+  port: ${NEST_HTTP_PORT:8080}
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  data:
+    redis:
+      host: ${NEST_REDIS_HOST:redis}
+      port: ${NEST_REDIS_PORT:6379}
+      password: ${NEST_REDIS_PASSWORD:}
+      database: ${NEST_REDIS_DATABASE:0}
+      timeout: ${NEST_REDIS_TIMEOUT:3000}
+      lettuce:
+        pool:
+          min-idle: ${NEST_REDIS_POOL_MIN_IDLE:1}
+          max-idle: 8
+          max-active: ${NEST_REDIS_POOL_MAX_ACTIVE:8}
+          max-wait: ${NEST_REDIS_POOL_MAX_WAIT:3000}
+
+nest:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: ${NEST_DB_HOST:mysql}
+    port: ${NEST_DB_PORT:3306}
+    database: ${NEST_DB_NAME:nest_rent}
+    username: ${NEST_DB_USER:root}
+    password: ${NEST_DB_PASSWORD:}
+
+  jwt:
+    admin-secret-key: ${NEST_JWT_ADMIN_SECRET:}
+    user-secret-key: ${NEST_JWT_USER_SECRET:}
+
+  cors:
+    allowed-origins: ${NEST_CORS_ALLOWED_ORIGINS:}
+
+  auth:
+    phone-login-enabled: false
+  wallet:
+    simulate-recharge-enabled: false
+  wechat:
+    mock-enabled: false
+
+  minio:
+    endpoint: ${NEST_MINIO_ENDPOINT:}
+    public-endpoint: ${NEST_MINIO_PUBLIC_ENDPOINT:}
+    access-key: ${NEST_MINIO_ACCESS_KEY:}
+    secret-key: ${NEST_MINIO_SECRET_KEY:}
+    bucket: ${NEST_MINIO_BUCKET:nest-rent}
+    avatar-bucket: ${NEST_MINIO_AVATAR_BUCKET:nest-avatar}
+
+  ai:
+    admin:
+      base-url: ${NEST_AI_ADMIN_BASE_URL:}
+      api-key: ${NEST_AI_ADMIN_API_KEY:}
+      model-name: ${NEST_AI_ADMIN_MODEL:}
+    user:
+      base-url: ${NEST_AI_USER_BASE_URL:}
+      api-key: ${NEST_AI_USER_API_KEY:}
+      model-name: ${NEST_AI_USER_MODEL:}
+
+  websocket:
+    netty:
+      port: ${NEST_WS_PORT:8081}
+
+  rag:
+    enabled: ${NEST_RAG_ENABLED:true}
+    ingest-on-startup: ${NEST_RAG_INGEST_ON_STARTUP:false}
+    vector-store:
+      host: ${NEST_PGVECTOR_HOST:pgvector}
+      port: ${NEST_PGVECTOR_PORT:5432}
+      database: ${NEST_PGVECTOR_DB:nest_rag}
+      username: ${NEST_PGVECTOR_USER:nest}
+      password: ${NEST_PGVECTOR_PASSWORD:}
+
+# 生产关闭接口文档
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# 生产只暴露健康检查与指标，管理端口不对外
+management:
+  server:
+    port: ${NEST_MANAGEMENT_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Nest
+    description: 多房东 AI 租房平台
+    version: 1.0.0
+
+logging:
+  level:
+    root: info
+    com.nest.mapper: info
+    com.nest.service: info
+    com.nest.controller: info
