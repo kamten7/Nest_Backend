@@ -35,7 +35,7 @@
         <fastjson2>2.0.53</fastjson2>
         <commons.lang3>3.17.0</commons.lang3>
         <druid>1.2.23</druid>
-        <pagehelper>2.1.0</pagehelper>
+        <pagehelper>4.1.1</pagehelper>
         <minio>8.5.17</minio>
         <aspectj>1.9.22</aspectj>
         <jjwt>0.12.6</jjwt>
