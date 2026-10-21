@@ -1,8 +1,8 @@
 package com.nest.rag.service.impl;
 
 import com.nest.constant.MessageConstant;
-import com.nest.entity.KnowledgeChunk;
-import com.nest.entity.KnowledgeDocument;
+import com.nest.entity.rag.KnowledgeChunk;
+import com.nest.entity.rag.KnowledgeDocument;
 import com.nest.exception.BusinessException;
 import com.nest.rag.config.RagProperties;
 import com.nest.rag.mapper.KnowledgeChunkMapper;

@@ -1,8 +1,8 @@
 package com.nest.order.mapper;
 
-import com.nest.dto.HouseBriefDTO;
-import com.nest.dto.RentSourceDTO;
-import com.nest.dto.TenantBriefDTO;
+import com.nest.dto.house.HouseBriefDTO;
+import com.nest.dto.order.RentSourceDTO;
+import com.nest.dto.tenant.TenantBriefDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

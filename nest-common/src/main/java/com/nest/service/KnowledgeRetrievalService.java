@@ -1,6 +1,6 @@
 package com.nest.service;
 
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 
 import java.util.List;
 

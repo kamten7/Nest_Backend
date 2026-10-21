@@ -1,9 +1,9 @@
 package com.nest.wallet.service;
 
 import com.nest.common.PageResult;
-import com.nest.entity.Wallet;
-import com.nest.vo.WalletTransactionVO;
-import com.nest.vo.WalletVO;
+import com.nest.entity.wallet.Wallet;
+import com.nest.vo.wallet.WalletTransactionVO;
+import com.nest.vo.wallet.WalletVO;
 
 import java.math.BigDecimal;
 

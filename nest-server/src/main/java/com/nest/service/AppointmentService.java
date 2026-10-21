@@ -1,8 +1,8 @@
 package com.nest.service;
 
 import com.nest.common.PageResult;
-import com.nest.dto.AppointmentCreateDTO;
-import com.nest.vo.AppointmentVO;
+import com.nest.dto.appointment.AppointmentCreateDTO;
+import com.nest.vo.appointment.AppointmentVO;
 
 /** 预约服务接口 */
 public interface AppointmentService {

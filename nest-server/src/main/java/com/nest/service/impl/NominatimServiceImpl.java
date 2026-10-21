@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nest.constant.MessageConstant;
 import com.nest.service.NominatimService;
-import com.nest.vo.GeocodeVO;
+import com.nest.vo.geo.GeocodeVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;

@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.Appointment;
+import com.nest.entity.appointment.Appointment;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

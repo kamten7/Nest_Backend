@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.Tenant;
+import com.nest.entity.tenant.Tenant;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

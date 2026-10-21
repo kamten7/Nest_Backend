@@ -1,9 +1,9 @@
 package com.nest.service;
 
 import com.nest.chat.push.PushService;
-import com.nest.entity.Conversation;
-import com.nest.entity.Landlord;
-import com.nest.entity.Message;
+import com.nest.entity.chat.Conversation;
+import com.nest.entity.landlord.Landlord;
+import com.nest.entity.chat.Message;
 import com.nest.mapper.ConversationMapper;
 import com.nest.mapper.LandlordMapper;
 import com.nest.mapper.MessageMapper;

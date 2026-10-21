@@ -1,6 +1,6 @@
 package com.nest.order.mapper;
 
-import com.nest.entity.RentReminderLog;
+import com.nest.entity.order.RentReminderLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

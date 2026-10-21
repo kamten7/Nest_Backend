@@ -1,7 +1,7 @@
 package com.nest.order.service;
 
 import com.nest.common.PageResult;
-import com.nest.vo.RentOrderVO;
+import com.nest.vo.order.RentOrderVO;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

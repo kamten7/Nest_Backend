@@ -1,7 +1,7 @@
 package com.nest.service;
 
 import com.nest.common.PageResult;
-import com.nest.vo.FavoriteVO;
+import com.nest.vo.favorite.FavoriteVO;
 
 /** 收藏服务接口 */
 public interface FavoriteService {

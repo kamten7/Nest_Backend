@@ -1,7 +1,7 @@
 package com.nest.ai.tools;
 
 import com.nest.service.KnowledgeRetrievalService;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;

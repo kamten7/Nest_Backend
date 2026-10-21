@@ -1,7 +1,7 @@
 package com.nest.ai.tools;
 
 import com.nest.service.KnowledgeRetrievalService;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 

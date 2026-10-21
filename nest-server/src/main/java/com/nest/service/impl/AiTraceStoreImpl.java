@@ -1,9 +1,9 @@
 package com.nest.service.impl;
 
-import com.nest.entity.AiTrace;
+import com.nest.entity.ai.AiTrace;
 import com.nest.mapper.AiTraceMapper;
 import com.nest.service.AiTraceStore;
-import com.nest.vo.AiTraceRecord;
+import com.nest.vo.ai.AiTraceRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;

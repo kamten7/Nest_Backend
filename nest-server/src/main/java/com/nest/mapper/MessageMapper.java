@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.Message;
+import com.nest.entity.chat.Message;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

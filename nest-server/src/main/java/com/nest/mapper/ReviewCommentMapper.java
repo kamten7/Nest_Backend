@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.ReviewComment;
+import com.nest.entity.review.ReviewComment;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

@@ -1,6 +1,6 @@
 package com.nest.rag.mapper;
 
-import com.nest.entity.KnowledgeChunk;
+import com.nest.entity.rag.KnowledgeChunk;
 import com.nest.rag.domain.KnowledgeChunkHit;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;

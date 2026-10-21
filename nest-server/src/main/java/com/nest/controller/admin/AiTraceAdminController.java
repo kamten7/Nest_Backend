@@ -1,7 +1,7 @@
 package com.nest.controller.admin;
 
 import com.nest.common.Result;
-import com.nest.entity.AiTrace;
+import com.nest.entity.ai.AiTrace;
 import com.nest.mapper.AiTraceMapper;
 import com.nest.service.impl.PlatformAdminGuard;
 import io.swagger.v3.oas.annotations.Operation;

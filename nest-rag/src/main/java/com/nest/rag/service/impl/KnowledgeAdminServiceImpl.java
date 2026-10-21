@@ -1,14 +1,14 @@
 package com.nest.rag.service.impl;
 
 import com.nest.constant.MessageConstant;
-import com.nest.entity.KnowledgeDocument;
+import com.nest.entity.rag.KnowledgeDocument;
 import com.nest.exception.BusinessException;
 import com.nest.rag.mapper.KnowledgeDocumentMapper;
 import com.nest.rag.service.KnowledgeAdminService;
 import com.nest.rag.service.KnowledgeIngestionService;
 import com.nest.service.KnowledgeRetrievalService;
-import com.nest.vo.KnowledgeDocumentVO;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.KnowledgeDocumentVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;

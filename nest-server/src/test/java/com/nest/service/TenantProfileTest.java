@@ -2,14 +2,14 @@ package com.nest.service;
 
 import com.nest.common.BaseContext;
 import com.nest.constant.MessageConstant;
-import com.nest.dto.TenantProfileDTO;
-import com.nest.entity.Tenant;
+import com.nest.dto.tenant.TenantProfileDTO;
+import com.nest.entity.tenant.Tenant;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.TenantMapper;
 import com.nest.minio.service.MinioService;
 import com.nest.service.impl.TenantServiceImpl;
 import com.nest.service.impl.LoginAttemptService;
-import com.nest.vo.TenantProfileVO;
+import com.nest.vo.tenant.TenantProfileVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

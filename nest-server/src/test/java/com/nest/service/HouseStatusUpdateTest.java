@@ -2,7 +2,7 @@ package com.nest.service;
 
 import com.nest.common.BaseContext;
 import com.nest.constant.MessageConstant;
-import com.nest.entity.House;
+import com.nest.entity.house.House;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.HouseImageMapper;
 import com.nest.mapper.HouseMapper;

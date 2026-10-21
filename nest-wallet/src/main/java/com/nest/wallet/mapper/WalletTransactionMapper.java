@@ -1,6 +1,6 @@
 package com.nest.wallet.mapper;
 
-import com.nest.entity.WalletTransaction;
+import com.nest.entity.wallet.WalletTransaction;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

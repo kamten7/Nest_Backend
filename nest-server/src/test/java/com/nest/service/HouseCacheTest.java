@@ -1,7 +1,7 @@
 package com.nest.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nest.common.BaseContext;
-import com.nest.entity.House;
+import com.nest.entity.house.House;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.HouseImageMapper;
 import com.nest.mapper.HouseMapper;
@@ -10,7 +10,7 @@ import com.nest.mapper.LandlordMapper;
 import com.nest.minio.service.MinioService;
 import com.nest.order.mapper.RentOrderMapper;
 import com.nest.service.impl.HouseServiceImpl;
-import com.nest.vo.HouseVO;
+import com.nest.vo.house.HouseVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

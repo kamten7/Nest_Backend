@@ -1,7 +1,7 @@
 package com.nest.listener;
 
-import com.nest.entity.Landlord;
-import com.nest.entity.Tenant;
+import com.nest.entity.landlord.Landlord;
+import com.nest.entity.tenant.Tenant;
 import com.nest.mapper.LandlordMapper;
 import com.nest.mapper.TenantMapper;
 import org.junit.jupiter.api.BeforeEach;

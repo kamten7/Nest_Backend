@@ -2,10 +2,10 @@ package com.nest.controller.user;
 
 import com.nest.common.PageResult;
 import com.nest.common.Result;
-import com.nest.dto.ReviewCommentDTO;
-import com.nest.dto.ReviewCreateDTO;
+import com.nest.dto.review.ReviewCommentDTO;
+import com.nest.dto.review.ReviewCreateDTO;
 import com.nest.service.ReviewService;
-import com.nest.vo.ReviewVO;
+import com.nest.vo.review.ReviewVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

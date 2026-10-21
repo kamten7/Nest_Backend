@@ -1,8 +1,8 @@
 package com.nest.rag.service;
 
-import com.nest.entity.KnowledgeDocument;
-import com.nest.vo.KnowledgeDocumentVO;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.entity.rag.KnowledgeDocument;
+import com.nest.vo.rag.KnowledgeDocumentVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 
 import java.util.List;
 

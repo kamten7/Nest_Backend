@@ -3,7 +3,7 @@ package com.nest.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nest.config.WeChatProperties;
-import com.nest.dto.WxSessionResponse;
+import com.nest.dto.tenant.WxSessionResponse;
 import com.nest.exception.BusinessException;
 import com.nest.service.WxAuthService;
 import lombok.extern.slf4j.Slf4j;

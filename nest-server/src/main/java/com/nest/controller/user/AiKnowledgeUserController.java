@@ -2,7 +2,7 @@ package com.nest.controller.user;
 
 import com.nest.common.Result;
 import com.nest.service.KnowledgeRetrievalService;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

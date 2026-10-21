@@ -1,6 +1,6 @@
 package com.nest.service;
 
-import com.nest.vo.ReviewVO;
+import com.nest.vo.review.ReviewVO;
 
 import java.util.List;
 

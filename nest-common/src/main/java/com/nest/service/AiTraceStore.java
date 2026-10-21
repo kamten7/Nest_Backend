@@ -1,6 +1,6 @@
 package com.nest.service;
 
-import com.nest.vo.AiTraceRecord;
+import com.nest.vo.ai.AiTraceRecord;
 
 public interface AiTraceStore {
 

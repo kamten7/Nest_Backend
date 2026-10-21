@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.Favorite;
+import com.nest.entity.favorite.Favorite;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

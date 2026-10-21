@@ -110,7 +110,7 @@
 
     
 
-    <select id="selectByBounds" resultType="com.nest.vo.HouseMarkerVO">
+    <select id="selectByBounds" resultType="com.nest.vo.house.HouseMarkerVO">
         SELECT h.id, h.title, h.price, h.latitude, h.longitude,
                hi.url AS coverImage
         FROM house h
@@ -122,7 +122,7 @@
         LIMIT #{limit}
     </select>
 
-    <select id="selectByLandlordMap" resultType="com.nest.vo.HouseMarkerVO">
+    <select id="selectByLandlordMap" resultType="com.nest.vo.house.HouseMarkerVO">
         SELECT h.id, h.title, h.price, h.latitude, h.longitude,
                hi.url AS coverImage
         FROM house h

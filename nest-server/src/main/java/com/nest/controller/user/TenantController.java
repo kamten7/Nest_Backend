@@ -2,12 +2,12 @@ package com.nest.controller.user;
 
 import com.nest.common.BaseContext;
 import com.nest.common.Result;
-import com.nest.dto.TenantLoginDTO;
-import com.nest.dto.TenantProfileDTO;
-import com.nest.dto.TenantRegisterDTO;
+import com.nest.dto.tenant.TenantLoginDTO;
+import com.nest.dto.tenant.TenantProfileDTO;
+import com.nest.dto.tenant.TenantRegisterDTO;
 import com.nest.service.TenantService;
-import com.nest.vo.TenantLoginVO;
-import com.nest.vo.TenantProfileVO;
+import com.nest.vo.tenant.TenantLoginVO;
+import com.nest.vo.tenant.TenantProfileVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

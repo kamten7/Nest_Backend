@@ -1,7 +1,7 @@
 package com.nest.service;
 
 import com.nest.constant.RentOrderStatus;
-import com.nest.entity.Wallet;
+import com.nest.entity.wallet.Wallet;
 import com.nest.order.mapper.RentOrderMapper;
 import com.nest.wallet.mapper.WalletMapper;
 import com.nest.wallet.service.impl.WalletServiceImpl;

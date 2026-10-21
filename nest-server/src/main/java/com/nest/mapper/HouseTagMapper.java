@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.HouseTag;
+import com.nest.entity.house.HouseTag;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

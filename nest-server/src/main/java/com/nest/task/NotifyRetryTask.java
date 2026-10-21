@@ -1,7 +1,7 @@
 package com.nest.task;
 
 import com.nest.chat.push.PushService;
-import com.nest.entity.NotifyTask;
+import com.nest.entity.chat.NotifyTask;
 import com.nest.mapper.NotifyTaskMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.nest.service;
 
-import com.nest.dto.HouseQueryDTO;
+import com.nest.dto.house.HouseQueryDTO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

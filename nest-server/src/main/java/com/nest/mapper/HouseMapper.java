@@ -1,7 +1,7 @@
 package com.nest.mapper;
 
-import com.nest.dto.HouseQueryDTO;
-import com.nest.entity.House;
+import com.nest.dto.house.HouseQueryDTO;
+import com.nest.entity.house.House;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -28,11 +28,11 @@ public interface HouseMapper {
 
     int incrementViewCount(@Param("id") Long id);
 
-    List<com.nest.vo.HouseMarkerVO> selectByBounds(@Param("minLat") double minLat,
+    List<com.nest.vo.house.HouseMarkerVO> selectByBounds(@Param("minLat") double minLat,
                                                    @Param("maxLat") double maxLat,
                                                    @Param("minLng") double minLng,
                                                    @Param("maxLng") double maxLng,
                                                    @Param("limit") int limit);
 
-    List<com.nest.vo.HouseMarkerVO> selectByLandlordMap(@Param("landlordId") Long landlordId);
+    List<com.nest.vo.house.HouseMarkerVO> selectByLandlordMap(@Param("landlordId") Long landlordId);
 }

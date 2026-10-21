@@ -1,5 +1,6 @@
 package com.nest.dto;
 
+import com.nest.dto.ai.AiChatDTO;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.Test;

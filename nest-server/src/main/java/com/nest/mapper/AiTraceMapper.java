@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.AiTrace;
+import com.nest.entity.ai.AiTrace;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

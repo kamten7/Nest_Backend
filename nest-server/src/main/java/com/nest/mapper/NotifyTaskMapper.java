@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.NotifyTask;
+import com.nest.entity.chat.NotifyTask;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

@@ -1,6 +1,6 @@
 package com.nest.ai.support;
 
-import com.nest.vo.AiTraceRecord;
+import com.nest.vo.ai.AiTraceRecord;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
 import org.junit.jupiter.api.Test;

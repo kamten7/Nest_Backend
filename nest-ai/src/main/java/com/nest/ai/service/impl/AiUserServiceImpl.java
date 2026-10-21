@@ -9,7 +9,7 @@ import com.nest.constant.MessageConstant;
 import com.nest.exception.NotLoginException;
 import com.nest.service.AiQuotaService;
 import com.nest.service.AiTraceStore;
-import com.nest.vo.AiMessageVO;
+import com.nest.vo.ai.AiMessageVO;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;

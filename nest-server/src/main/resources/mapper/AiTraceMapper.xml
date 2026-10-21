@@ -12,7 +12,7 @@
              #{latencyMs}, #{promptTokens}, #{completionTokens}, #{model}, #{success}, #{errorCode})
     </insert>
 
-    <select id="selectRecent" resultType="com.nest.entity.AiTrace">
+    <select id="selectRecent" resultType="com.nest.entity.ai.AiTrace">
         SELECT * FROM ai_trace ORDER BY id DESC LIMIT #{limit}
     </select>
 

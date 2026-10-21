@@ -1,6 +1,6 @@
 package com.nest.ai.service;
 
-import com.nest.vo.AiMessageVO;
+import com.nest.vo.ai.AiMessageVO;
 import jakarta.servlet.AsyncContext;
 
 import java.util.List;

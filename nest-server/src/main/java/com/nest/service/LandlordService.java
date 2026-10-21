@@ -1,7 +1,7 @@
 package com.nest.service;
 
-import com.nest.dto.LandlordLoginDTO;
-import com.nest.vo.LandlordLoginVO;
+import com.nest.dto.landlord.LandlordLoginDTO;
+import com.nest.vo.landlord.LandlordLoginVO;
 
 /** 房东服务接口 */
 public interface LandlordService {

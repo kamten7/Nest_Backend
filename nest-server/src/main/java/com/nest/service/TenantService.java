@@ -1,10 +1,10 @@
 package com.nest.service;
 
-import com.nest.dto.TenantLoginDTO;
-import com.nest.dto.TenantProfileDTO;
-import com.nest.dto.TenantRegisterDTO;
-import com.nest.vo.TenantLoginVO;
-import com.nest.vo.TenantProfileVO;
+import com.nest.dto.tenant.TenantLoginDTO;
+import com.nest.dto.tenant.TenantProfileDTO;
+import com.nest.dto.tenant.TenantRegisterDTO;
+import com.nest.vo.tenant.TenantLoginVO;
+import com.nest.vo.tenant.TenantProfileVO;
 import org.springframework.web.multipart.MultipartFile;
 
 /** 租客服务接口 */

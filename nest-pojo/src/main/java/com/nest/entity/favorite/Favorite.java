@@ -1,0 +1,21 @@
+package com.nest.entity.favorite;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/** 收藏实体 */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Favorite {
+
+    private Long id;
+    private Long tenantId;
+    private Long houseId;
+    private LocalDateTime createTime;
+}

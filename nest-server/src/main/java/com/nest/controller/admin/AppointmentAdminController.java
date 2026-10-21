@@ -3,7 +3,7 @@ package com.nest.controller.admin;
 import com.nest.common.PageResult;
 import com.nest.common.Result;
 import com.nest.service.AppointmentService;
-import com.nest.vo.AppointmentVO;
+import com.nest.vo.appointment.AppointmentVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

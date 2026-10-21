@@ -2,8 +2,8 @@ package com.nest.listener;
 
 import com.nest.chat.core.ChatAccountChecker;
 import com.nest.constant.JwtConstant;
-import com.nest.entity.Landlord;
-import com.nest.entity.Tenant;
+import com.nest.entity.landlord.Landlord;
+import com.nest.entity.tenant.Tenant;
 import com.nest.mapper.LandlordMapper;
 import com.nest.mapper.TenantMapper;
 import lombok.RequiredArgsConstructor;

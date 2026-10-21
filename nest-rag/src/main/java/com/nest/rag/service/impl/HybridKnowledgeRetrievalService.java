@@ -5,7 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.nest.rag.config.RagProperties;
 import com.nest.rag.retriever.KeywordContentRetriever;
 import com.nest.service.KnowledgeRetrievalService;
-import com.nest.vo.RetrievedChunkVO;
+import com.nest.vo.rag.RetrievedChunkVO;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.rag.content.Content;

@@ -12,15 +12,15 @@
              #{status}, #{chunkCount}, #{contentHash}, #{version}, #{content}, #{createdBy})
     </insert>
 
-    <select id="selectById" resultType="com.nest.entity.KnowledgeDocument">
+    <select id="selectById" resultType="com.nest.entity.rag.KnowledgeDocument">
         SELECT * FROM knowledge_document WHERE id = #{id}
     </select>
 
-    <select id="selectByHash" resultType="com.nest.entity.KnowledgeDocument">
+    <select id="selectByHash" resultType="com.nest.entity.rag.KnowledgeDocument">
         SELECT * FROM knowledge_document WHERE content_hash = #{contentHash} LIMIT 1
     </select>
 
-    <select id="selectPage" resultType="com.nest.entity.KnowledgeDocument">
+    <select id="selectPage" resultType="com.nest.entity.rag.KnowledgeDocument">
         SELECT id, title, category, source_type, source_uri, city, district,
                status, chunk_count, content_hash, version, error_msg, created_by, create_time, update_time
         FROM knowledge_document

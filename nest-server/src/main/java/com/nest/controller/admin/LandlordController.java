@@ -2,11 +2,11 @@ package com.nest.controller.admin;
 
 import com.nest.common.BaseContext;
 import com.nest.common.Result;
-import com.nest.dto.LandlordLoginDTO;
-import com.nest.entity.Landlord;
+import com.nest.dto.landlord.LandlordLoginDTO;
+import com.nest.entity.landlord.Landlord;
 import com.nest.mapper.LandlordMapper;
 import com.nest.service.LandlordService;
-import com.nest.vo.LandlordLoginVO;
+import com.nest.vo.landlord.LandlordLoginVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

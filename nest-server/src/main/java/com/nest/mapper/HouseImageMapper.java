@@ -1,6 +1,6 @@
 package com.nest.mapper;
 
-import com.nest.entity.HouseImage;
+import com.nest.entity.house.HouseImage;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

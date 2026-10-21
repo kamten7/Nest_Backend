@@ -1,8 +1,8 @@
 package com.nest.service;
 
 import com.nest.common.PageResult;
-import com.nest.vo.ConversationVO;
-import com.nest.vo.MessageVO;
+import com.nest.vo.chat.ConversationVO;
+import com.nest.vo.chat.MessageVO;
 
 /** 聊天服务接口 —— 会话 + 消息 + 未读。 */
 public interface ChatService {

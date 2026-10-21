@@ -1,6 +1,6 @@
 package com.nest.order.mapper;
 
-import com.nest.entity.RentOrder;
+import com.nest.entity.order.RentOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

@@ -1,6 +1,6 @@
 package com.nest.rag.service;
 
-import com.nest.entity.KnowledgeDocument;
+import com.nest.entity.rag.KnowledgeDocument;
 
 public interface KnowledgeIngestionService {
 

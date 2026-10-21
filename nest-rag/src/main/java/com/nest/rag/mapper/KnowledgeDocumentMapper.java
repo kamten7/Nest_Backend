@@ -1,6 +1,6 @@
 package com.nest.rag.mapper;
 
-import com.nest.entity.KnowledgeDocument;
+import com.nest.entity.rag.KnowledgeDocument;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

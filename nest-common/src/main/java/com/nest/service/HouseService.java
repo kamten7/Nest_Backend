@@ -1,9 +1,9 @@
 package com.nest.service;
 
 import com.nest.common.PageResult;
-import com.nest.dto.HouseCreateDTO;
-import com.nest.dto.HouseQueryDTO;
-import com.nest.vo.HouseVO;
+import com.nest.dto.house.HouseCreateDTO;
+import com.nest.dto.house.HouseQueryDTO;
+import com.nest.vo.house.HouseVO;
 import org.springframework.web.multipart.MultipartFile;
 
 /** 房源服务接口。 */
@@ -29,9 +29,9 @@ public interface HouseService {
 
     void evictCache(Long houseId);
 
-    java.util.List<com.nest.vo.HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
+    java.util.List<com.nest.vo.house.HouseMarkerVO> mapQuery(Double minLat, Double maxLat,
                                                          Double minLng, Double maxLng,
                                                          Double lat, Double lng, Double radius);
 
-    java.util.List<com.nest.vo.HouseMarkerVO> landlordMap();
+    java.util.List<com.nest.vo.house.HouseMarkerVO> landlordMap();
 }

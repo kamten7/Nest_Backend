@@ -1,6 +1,6 @@
 package com.nest.service;
 
-import com.nest.vo.GeocodeVO;
+import com.nest.vo.geo.GeocodeVO;
 
 /** Nominatim 地理编码服务 —— 地址↔坐标互转。 */
 public interface NominatimService {

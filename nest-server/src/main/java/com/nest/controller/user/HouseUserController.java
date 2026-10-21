@@ -2,10 +2,10 @@ package com.nest.controller.user;
 
 import com.nest.common.PageResult;
 import com.nest.common.Result;
-import com.nest.dto.HouseQueryDTO;
+import com.nest.dto.house.HouseQueryDTO;
 import com.nest.service.HouseService;
-import com.nest.vo.HouseMarkerVO;
-import com.nest.vo.HouseVO;
+import com.nest.vo.house.HouseMarkerVO;
+import com.nest.vo.house.HouseVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

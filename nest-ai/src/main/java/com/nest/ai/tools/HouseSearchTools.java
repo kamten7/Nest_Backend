@@ -1,12 +1,12 @@
 package com.nest.ai.tools;
 
 import com.nest.common.PageResult;
-import com.nest.dto.HouseQueryDTO;
+import com.nest.dto.house.HouseQueryDTO;
 import com.nest.service.HouseService;
 import com.nest.service.ReviewQueryService;
-import com.nest.vo.HouseMarkerVO;
-import com.nest.vo.HouseVO;
-import com.nest.vo.ReviewVO;
+import com.nest.vo.house.HouseMarkerVO;
+import com.nest.vo.house.HouseVO;
+import com.nest.vo.review.ReviewVO;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;

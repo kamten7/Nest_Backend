@@ -3,7 +3,7 @@ package com.nest.controller.user;
 import com.nest.common.PageResult;
 import com.nest.common.Result;
 import com.nest.service.FavoriteService;
-import com.nest.vo.FavoriteVO;
+import com.nest.vo.favorite.FavoriteVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

@@ -1,7 +1,7 @@
 package com.nest.ai.support;
 
 import com.alibaba.fastjson2.JSON;
-import com.nest.vo.AiTraceRecord;
+import com.nest.vo.ai.AiTraceRecord;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.tool.ToolExecution;

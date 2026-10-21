@@ -2,14 +2,14 @@ package com.nest.service.impl;
 
 import com.nest.constant.JwtConstant;
 import com.nest.constant.MessageConstant;
-import com.nest.dto.LandlordLoginDTO;
-import com.nest.entity.Landlord;
+import com.nest.dto.landlord.LandlordLoginDTO;
+import com.nest.entity.landlord.Landlord;
 import com.nest.exception.BusinessException;
 import com.nest.mapper.LandlordMapper;
 import com.nest.service.LandlordService;
 import com.nest.utils.JwtUtil;
 import com.nest.utils.PasswordEncoderUtil;
-import com.nest.vo.LandlordLoginVO;
+import com.nest.vo.landlord.LandlordLoginVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

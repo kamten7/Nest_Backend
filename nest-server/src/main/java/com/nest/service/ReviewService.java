@@ -1,7 +1,7 @@
 package com.nest.service;
 
 import com.nest.common.PageResult;
-import com.nest.vo.ReviewVO;
+import com.nest.vo.review.ReviewVO;
 
 /** 评论服务接口 */
 public interface ReviewService {
